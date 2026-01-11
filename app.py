@@ -1,13 +1,15 @@
 import streamlit as st
-from core.db import get_connection
+from core.services import cargar_bd_completa
 
-st.title("Tarifario v2")
+st.title("Tarifario")
+st.subheader("Tablas disponibles en la BD")
 
-if st.button("Probar conexión"):
-    try:
-        conn = get_connection()
-        conn.execute("SELECT 1")
-        conn.close()
-        st.success("Conexión OK")
-    except Exception as e:
-        st.error(e)
+df = cargar_bd_completa()
+st.dataframe(df)
+
+
+
+
+
+
+
