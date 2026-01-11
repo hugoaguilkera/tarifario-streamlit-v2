@@ -49,19 +49,6 @@ def calcular_mejor_opcion(df: pd.DataFrame, col_precio: str):
     df_ok["MARGEN"] = df_ok["PROFIT"] / df_ok[col_precio]
     return df_ok.sort_values("ALL_IN").iloc[0]
 
-# ===============================
-# CARGA BASE (REPORTE COMPLETO)
-# ===============================
-st.subheader("📋 Tarifario completo (BD real)")
-
-df_base = cargar_bd_completa()
-st.caption(f"Registros totales: {len(df_base):,}")
-
-st.dataframe(
-    df_base,
-    use_container_width=True,
-    height=500
-)
 
 # ===============================
 # BOTÓN REFRESCAR
@@ -212,6 +199,20 @@ if st.button("🔍 Buscar tarifas"):
             file_name="tarifario_filtrado.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+# ===============================
+# REPORTE COMPLETO (AL FINAL)
+# ===============================
+st.divider()
+st.subheader("📋 Tarifario completo (BD real)")
+
+df_base = cargar_bd_completa()
+st.caption(f"Registros totales: {len(df_base):,}")
+
+st.dataframe(
+    df_base,
+    use_container_width=True,
+    height=500
+)
 
 
 
