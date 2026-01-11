@@ -14,7 +14,7 @@ import streamlit as st
 DB_NAME = "tarifario.db"
 
 st.set_page_config(page_title="Tarifario Pactra", layout="wide")
-st.title("Tarifario Pactra")
+st.title("📊 Tarifario Pactra")
 
 # ===============================
 # FUNCIONES BD
@@ -50,14 +50,31 @@ def calcular_mejor_opcion(df: pd.DataFrame, col_precio: str):
     return df_ok.sort_values("ALL_IN").iloc[0]
 
 # ===============================
-# CARGA BASE
+# CARGA BASE (REPORTE COMPLETO)
 # ===============================
+st.subheader("📋 Tarifario completo (BD real)")
+
 df_base = cargar_bd_completa()
 st.caption(f"Registros totales: {len(df_base):,}")
+
+st.dataframe(
+    df_base,
+    use_container_width=True,
+    height=500
+)
+
+# ===============================
+# BOTÓN REFRESCAR
+# ===============================
+if st.button("🔄 Refrescar base de datos"):
+    st.rerun()
 
 # ===============================
 # CATÁLOGOS
 # ===============================
+st.divider()
+st.subheader("⚙️ Filtros del servicio")
+
 with sqlite3.connect(DB_NAME) as conn:
     tipos_operacion = pd.read_sql(
         "SELECT TIPO_OPERACION FROM CAT_TIPO_OPERACION ORDER BY TIPO_OPERACION",
@@ -79,8 +96,6 @@ with sqlite3.connect(DB_NAME) as conn:
 # ===============================
 # FILTROS
 # ===============================
-st.subheader("⚙️ Configuración del servicio")
-
 c1, c2, c3 = st.columns(3)
 with c1:
     tipo_operacion = st.selectbox("Tipo de operación", tipos_operacion)
@@ -167,8 +182,8 @@ if st.button("🔍 Buscar tarifas"):
         & (df_base["CIUDAD_DESTINO"] == ciudad_destino)
     ].copy()
 
-    st.subheader("📋 Resultados")
-    st.caption(f"Registros filtrados: {len(df_filtrado):,}")
+    st.subheader("📌 Resultados filtrados")
+    st.caption(f"Registros: {len(df_filtrado):,}")
     st.dataframe(df_filtrado, use_container_width=True, height=350)
 
     st.subheader("🏆 Mejor tarifa")
@@ -180,13 +195,12 @@ if st.button("🔍 Buscar tarifas"):
     else:
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Transportista", mejor["TRANSPORTISTA"])
-        c2.metric("Tipo operación", tipo_operacion)
-        c3.metric("Tipo viaje", tipo_viaje)
+        c2.metric("Operación", tipo_operacion)
+        c3.metric("Viaje", tipo_viaje)
         c4.metric("Precio", f"${mejor[col_precio]:,.0f}")
         c5.metric("ALL IN", f"${mejor['ALL_IN']:,.0f}")
         st.caption(f"Margen estimado: {mejor['MARGEN']*100:.1f}%")
 
-    # Exportar
     if not df_filtrado.empty:
         buffer = io.BytesIO()
         df_filtrado.to_excel(buffer, index=False)
@@ -198,6 +212,7 @@ if st.button("🔍 Buscar tarifas"):
             file_name="tarifario_filtrado.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
 
 
 
