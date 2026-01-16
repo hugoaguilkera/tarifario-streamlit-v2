@@ -439,6 +439,84 @@ else:
 
             st.dataframe(historial, use_container_width=True)
 
+# =====================================================
+# BLOQUE 5.6 - ROLLBACK DE VERSIÓN (BLINDADO)
+# =====================================================
+
+st.divider()
+st.subheader("🔁 Rollback de versión")
+
+tarifa_id = st.session_state.get("tarifa_id")
+
+if not tarifa_id:
+    st.info("Selecciona una tarifa para habilitar rollback.")
+else:
+    with sqlite3.connect(DB_NAME) as conn:
+        historial_rb = pd.read_sql(
+            """
+            SELECT
+                VERSION,
+                ACTIVA,
+                FECHA_CAMBIO,
+                USUARIO_CAMBIO,
+                MOTIVO_CAMBIO
+            FROM tarifario_estandar
+            WHERE ID_TARIFA = ?
+            ORDER BY VERSION DESC
+            """,
+            conn,
+            params=(tarifa_id,)
+        )
+
+    versiones_historicas = historial_rb[historial_rb["ACTIVA"] == 0]
+
+    if versiones_historicas.empty:
+        st.info("No hay versiones históricas disponibles para rollback.")
+    else:
+        version_objetivo = st.selectbox(
+            "Selecciona la versión a restaurar",
+            versiones_historicas["VERSION"].tolist(),
+            key="rb_version_sel"
+        )
+
+        confirmar = st.button("⚠️ Restaurar esta versión", key="rb_confirmar_btn")
+
+        if confirmar:
+            with sqlite3.connect(DB_NAME) as conn:
+                cur = conn.cursor()
+                cur.execute("BEGIN")
+
+                # ✅ Validar que exista esa versión para ese ID
+                cur.execute(
+                    "SELECT 1 FROM tarifario_estandar WHERE ID_TARIFA = ? AND VERSION = ?",
+                    (tarifa_id, version_objetivo)
+                )
+                existe = cur.fetchone()
+
+                if not existe:
+                    cur.execute("ROLLBACK")
+                    st.error("❌ Esa versión no existe. Refresca e intenta de nuevo.")
+                else:
+                    # 1️⃣ Apagar cualquier activa (blindado: por si hubiera más de 1)
+                    cur.execute("""
+                        UPDATE tarifario_estandar
+                        SET ACTIVA = 0
+                        WHERE ID_TARIFA = ? AND ACTIVA = 1
+                    """, (tarifa_id,))
+
+                    # 2️⃣ Activar versión elegida
+                    cur.execute("""
+                        UPDATE tarifario_estandar
+                        SET ACTIVA = 1,
+                            FECHA_CAMBIO = datetime('now'),
+                            USUARIO_CAMBIO = 'Ingeniero Hugo',
+                            MOTIVO_CAMBIO = 'Rollback a versión anterior'
+                        WHERE ID_TARIFA = ? AND VERSION = ?
+                    """, (tarifa_id, version_objetivo))
+
+                    conn.commit()
+                    st.success(f"✅ Rollback exitoso a versión {version_objetivo}")
+                    st.rerun()
 
 
 
