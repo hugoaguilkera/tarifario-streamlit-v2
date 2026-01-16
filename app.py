@@ -288,6 +288,156 @@ if not st.session_state["df_filtrado"].empty:
     )
 else:
     st.info("Aún no hay resultados. Configura filtros y busca.")
+# =====================================================
+# BLOQUE 5.5 - EDICIÓN VERSIONADA + HISTORIAL
+# =====================================================
+
+df_activo = st.session_state.get("df_filtrado", pd.DataFrame())
+
+st.divider()
+st.subheader("✏️ Editar tarifa (versionado ERP)")
+
+if df_activo.empty or "ID_TARIFA" not in df_activo.columns:
+    st.info("Realiza una búsqueda para poder editar tarifas.")
+else:
+    df_activo = df_activo[df_activo["ID_TARIFA"].notna()]
+
+    if df_activo.empty:
+        st.info("No hay tarifas válidas para edición.")
+    else:
+        tarifa_id = st.selectbox(
+            "Selecciona la tarifa (ID_TARIFA)",
+            sorted(df_activo["ID_TARIFA"].unique()),
+            key="tarifa_id_sel"
+        )
+
+        st.session_state["tarifa_id"] = tarifa_id
+
+        tarifa_df = df_activo[df_activo["ID_TARIFA"] == tarifa_id]
+
+        if tarifa_df.empty:
+            st.warning("La tarifa seleccionada no está disponible para edición.")
+        else:
+            tarifa = tarifa_df.iloc[0]
+
+            with st.form("editar_tarifa_form"):
+                nuevo_precio = st.number_input(
+                    "Precio viaje sencillo",
+                    value=float(tarifa.get("PRECIO_VIAJE_SENCILLO", 0) or 0),
+                    step=100.0
+                )
+
+                nuevo_allin = st.number_input(
+                    "ALL IN",
+                    value=float(tarifa.get("ALL_IN", 0) or 0),
+                    step=100.0
+                )
+
+                motivo = st.text_input(
+                    "Motivo del cambio (obligatorio)",
+                    placeholder="Ej. ajuste por diesel / negociación cliente"
+                )
+
+                guardar = st.form_submit_button("💾 Guardar nueva versión")
+
+            if guardar:
+                if not motivo.strip():
+                    st.warning("⚠️ El motivo del cambio es obligatorio.")
+                else:
+                    with sqlite3.connect(DB_NAME) as conn:
+                        cur = conn.cursor()
+
+                        # ✅ 0) Calcular nueva versión de forma segura
+                        cur.execute(
+                            "SELECT COALESCE(MAX(VERSION), 0) + 1 FROM tarifario_estandar WHERE ID_TARIFA = ?",
+                            (tarifa_id,)
+                        )
+                        nueva_version = cur.fetchone()[0]
+
+                        # ✅ 1) Desactivar versión actual (solo la activa)
+                        cur.execute("""
+                            UPDATE tarifario_estandar
+                            SET ACTIVA = 0
+                            WHERE ID_TARIFA = ? AND ACTIVA = 1
+                        """, (tarifa_id,))
+
+                        # ✅ 2) Insertar nueva versión copiando SOLO la fila activa anterior
+                        cur.execute("""
+                            INSERT INTO tarifario_estandar (
+                                ID_TARIFA,
+                                VERSION,
+                                ACTIVA,
+                                PRECIO_VIAJE_SENCILLO,
+                                ALL_IN,
+                                FECHA_CAMBIO,
+                                USUARIO_CAMBIO,
+                                MOTIVO_CAMBIO,
+                                CLIENTE,
+                                TRANSPORTISTA,
+                                TIPO_DE_OPERACION,
+                                TIPO_DE_VIAJE,
+                                TIPO_UNIDAD,
+                                PAIS_ORIGEN,
+                                ESTADO_ORIGEN,
+                                CIUDAD_ORIGEN,
+                                PAIS_DESTINO,
+                                ESTADO_DESTINO,
+                                CIUDAD_DESTINO
+                            )
+                            SELECT
+                                ID_TARIFA,
+                                ?,
+                                1,
+                                ?,
+                                ?,
+                                datetime('now'),
+                                'Ingeniero Hugo',
+                                ?,
+                                CLIENTE,
+                                TRANSPORTISTA,
+                                TIPO_DE_OPERACION,
+                                TIPO_DE_VIAJE,
+                                TIPO_UNIDAD,
+                                PAIS_ORIGEN,
+                                ESTADO_ORIGEN,
+                                CIUDAD_ORIGEN,
+                                PAIS_DESTINO,
+                                ESTADO_DESTINO,
+                                CIUDAD_DESTINO
+                            FROM tarifario_estandar
+                            WHERE ID_TARIFA = ?
+                            ORDER BY VERSION DESC
+                            LIMIT 1
+                        """, (nueva_version, nuevo_precio, nuevo_allin, motivo, tarifa_id))
+
+                        conn.commit()
+
+                    st.success(f"✅ Nueva versión creada (v{nueva_version})")
+                    st.rerun()
+
+            st.divider()
+            st.subheader("📜 Historial de versiones")
+
+            with sqlite3.connect(DB_NAME) as conn:
+                historial = pd.read_sql(
+                    """
+                    SELECT
+                        VERSION,
+                        PRECIO_VIAJE_SENCILLO,
+                        ALL_IN,
+                        ACTIVA,
+                        FECHA_CAMBIO,
+                        USUARIO_CAMBIO,
+                        MOTIVO_CAMBIO
+                    FROM tarifario_estandar
+                    WHERE ID_TARIFA = ?
+                    ORDER BY VERSION DESC
+                    """,
+                    conn,
+                    params=(tarifa_id,)
+                )
+
+            st.dataframe(historial, use_container_width=True)
 
 
 
