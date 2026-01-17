@@ -339,7 +339,326 @@ df_tipo_operacion = df_sql(
     "SELECT TIPO_OPERACION FROM CAT_TIPO_OPERACION ORDER BY TIPO_OPERACION"
 )
 st.dataframe(df_tipo_operacion, use_container_width=True)
+# =====================================================
+# 🚚 TIPO DE VIAJE
+# =====================================================
+st.divider()
+st.subheader("🚚 Tipo de viaje")
 
-conn.close()
+c1, c2 = st.columns([3, 1])
+with c1:
+    nuevo_tipo_viaje = st.text_input(
+        "Nuevo tipo de viaje",
+        placeholder="Ej. SENCILLO / REDONDO / MULTI",
+        key="cat_nuevo_tipo_viaje"
+    )
+with c2:
+    if st.button("➕ Agregar tipo de viaje", key="cat_btn_add_tipo_viaje"):
+        nuevo = (nuevo_tipo_viaje or "").strip().upper()
+        if not nuevo:
+            st.warning("Escribe un tipo de viaje.")
+        else:
+            existe = df_sql(
+                "SELECT 1 FROM CAT_TIPO_VIAJE WHERE TIPO_VIAJE = ? LIMIT 1",
+                (nuevo,)
+            )
+            if not existe.empty:
+                st.warning("⚠️ El tipo de viaje ya existe.")
+            else:
+                exec_sql(
+                    "INSERT INTO CAT_TIPO_VIAJE (TIPO_VIAJE) VALUES (?)",
+                    (nuevo,)
+                )
+                st.success("✅ Tipo de viaje agregado correctamente.")
+                st.rerun()
+
+df_tipo_viaje = df_sql("SELECT TIPO_VIAJE FROM CAT_TIPO_VIAJE ORDER BY TIPO_VIAJE")
+st.dataframe(df_tipo_viaje, use_container_width=True)
+
+# =====================================================
+# 🆕 ALTA DE PAÍS / ESTADO / CIUDAD
+# =====================================================
+st.subheader("🆕 Alta de País / Estado / Ciudad")
+# -----------------
+# 🌍 Alta País
+# -----------------
+st.markdown("### 🌍 Nuevo país")
+
+nuevo_pais = st.text_input(
+    "Nombre del país",
+    placeholder="Ej. CAN / USA / MEX",
+    key="nuevo_pais"
+)
+
+if st.button("➕ Agregar país", key="btn_add_pais"):
+    pais = (nuevo_pais or "").strip().upper()
+
+    if not pais:
+        st.warning("Escribe un país.")
+    else:
+        existe = pd.read_sql(
+            "SELECT 1 FROM CAT_PAISES WHERE PAIS = ? LIMIT 1",
+            conn,
+            params=(pais,)
+        )
+
+        if not existe.empty:
+            st.warning("⚠️ El país ya existe.")
+        else:
+            conn.execute(
+                "INSERT INTO CAT_PAISES (PAIS, ACTIVO) VALUES (?, 1)",
+                (pais,)
+            )
+            conn.commit()
+            st.success("✅ País agregado.")
+            st.rerun()
+# -----------------
+# 🗺️ Alta Estado
+# -----------------
+st.markdown("### 🗺️ Nuevo estado")
+
+df_paises_all = pd.read_sql(
+    "SELECT ID_PAIS, PAIS FROM CAT_PAISES WHERE ACTIVO = 1 ORDER BY PAIS",
+    conn
+)
+
+if df_paises_all.empty:
+    st.warning("⚠️ No hay países activos. Primero agrega un país.")
+else:
+    pais_estado = st.selectbox(
+        "País del estado",
+        df_paises_all["PAIS"].tolist(),
+        key="pais_estado"
+    )
+
+    nuevo_estado = st.text_input(
+        "Nombre del estado",
+        placeholder="Ej. ALBERTA / TEXAS / NUEVO LEÓN",
+        key="nuevo_estado"
+    )
+
+    if st.button("➕ Agregar estado", key="btn_add_estado"):
+        estado = (nuevo_estado or "").strip().upper()
+        id_pais = int(df_paises_all.loc[df_paises_all["PAIS"] == pais_estado, "ID_PAIS"].iloc[0])
+
+        if not estado:
+            st.warning("Escribe un estado.")
+        else:
+            existe = pd.read_sql(
+                """
+                SELECT 1
+                FROM CAT_ESTADOS_NEW
+                WHERE ESTADO = ? AND ID_PAIS = ?
+                LIMIT 1
+                """,
+                conn,
+                params=(estado, id_pais)
+            )
+
+            if not existe.empty:
+                st.warning("⚠️ El estado ya existe para ese país.")
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO CAT_ESTADOS_NEW (ESTADO, ID_PAIS, ACTIVO)
+                    VALUES (?, ?, 1)
+                    """,
+                    (estado, id_pais)
+                )
+                conn.commit()
+                st.success("✅ Estado agregado.")
+                st.rerun()
+# -----------------
+# 🏙️ Alta Ciudad
+# -----------------
+st.markdown("### 🏙️ Nueva ciudad")
+
+df_estados_all = pd.read_sql(
+    """
+    SELECT E.ID_ESTADO, E.ESTADO, P.PAIS
+    FROM CAT_ESTADOS_NEW E
+    JOIN CAT_PAISES P ON P.ID_PAIS = E.ID_PAIS
+    WHERE E.ACTIVO = 1
+    ORDER BY P.PAIS, E.ESTADO
+    """,
+    conn
+)
+
+if df_estados_all.empty:
+    st.warning("⚠️ No hay estados activos. Primero agrega un estado.")
+else:
+    estado_ciudad = st.selectbox(
+        "Estado de la ciudad",
+        df_estados_all["ESTADO"].tolist(),
+        key="estado_ciudad"
+    )
+
+    nueva_ciudad = st.text_input(
+        "Nombre de la ciudad",
+        placeholder="Ej. CALGARY / ATLANTA / MONTERREY",
+        key="nueva_ciudad"
+    )
+
+    if st.button("➕ Agregar ciudad", key="btn_add_ciudad"):
+        ciudad = (nueva_ciudad or "").strip().upper()
+        id_estado = int(
+            df_estados_all.loc[df_estados_all["ESTADO"] == estado_ciudad, "ID_ESTADO"].iloc[0]
+        )
+
+        if not ciudad:
+            st.warning("Escribe una ciudad.")
+        else:
+            existe = pd.read_sql(
+                """
+                SELECT 1
+                FROM CAT_CIUDADES
+                WHERE CIUDAD = ? AND ID_ESTADO = ?
+                LIMIT 1
+                """,
+                conn,
+                params=(ciudad, id_estado)
+            )
+
+            if not existe.empty:
+                st.warning("⚠️ La ciudad ya existe para ese estado.")
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO CAT_CIUDADES (CIUDAD, ID_ESTADO, ACTIVO)
+                    VALUES (?, ?, 1)
+                    """,
+                    (ciudad, id_estado)
+                )
+                conn.commit()
+                st.success("✅ Ciudad agregada.")
+                st.rerun()
+# ============================
+# 🌍 PAÍS / ESTADO / CIUDAD (NORMALIZADO)
+# ============================
+st.divider()
+st.subheader("🌍 País / Estado / Ciudad (vista)")
+
+# 🌍 PAÍS
+df_paises = pd.read_sql(
+    """
+    SELECT ID_PAIS, PAIS
+    FROM CAT_PAISES
+    WHERE ACTIVO = 1
+    ORDER BY PAIS
+    """,
+    conn
+)
+
+if df_paises.empty:
+    st.error("❌ No hay países activos en el catálogo.")
+    st.stop()
+
+pais_sel = st.selectbox(
+    "🌍 País",
+    df_paises["PAIS"].tolist(),
+    key="pais_sel_norm"
+)
+
+id_pais = int(df_paises.loc[df_paises["PAIS"] == pais_sel, "ID_PAIS"].iloc[0])
+
+# 🗺️ ESTADO
+df_estados = pd.read_sql(
+    """
+    SELECT ID_ESTADO, ESTADO
+    FROM CAT_ESTADOS_NEW
+    WHERE ID_PAIS = ?
+      AND ACTIVO = 1
+    ORDER BY ESTADO
+    """,
+    conn,
+    params=(id_pais,)
+)
+
+if df_estados.empty:
+    st.warning("⚠️ No hay estados registrados para este país.")
+    id_estado = None
+else:
+    estado_sel = st.selectbox(
+        "🗺️ Estado",
+        df_estados["ESTADO"].tolist(),
+        key="estado_sel_norm"
+    )
+    id_estado = int(df_estados.loc[df_estados["ESTADO"] == estado_sel, "ID_ESTADO"].iloc[0])
+
+# 🏙️ CIUDAD
+if id_estado is None:
+    st.info("Selecciona un estado para ver ciudades.")
+else:
+    df_ciudades = pd.read_sql(
+        """
+        SELECT ID_CIUDAD, CIUDAD
+        FROM CAT_CIUDADES
+        WHERE ID_ESTADO = ?
+          AND ACTIVO = 1
+        ORDER BY CIUDAD
+        """,
+        conn,
+        params=(id_estado,)
+    )
+
+    if df_ciudades.empty:
+        st.warning("⚠️ No hay ciudades registradas para este estado.")
+    else:
+        ciudad_sel = st.selectbox(
+            "🏙️ Ciudad",
+            df_ciudades["CIUDAD"].tolist(),
+            key="ciudad_sel_norm"
+        )
+        id_ciudad = int(df_ciudades.loc[df_ciudades["CIUDAD"] == ciudad_sel, "ID_CIUDAD"].iloc[0])
+
+        # (Opcional) Mostrar IDs para debug / auditoría
+        st.caption(f"IDs: país={id_pais} | estado={id_estado} | ciudad={id_ciudad}")
+# =====================================================
+# 🚚 TIPO DE UNIDAD
+# =====================================================
+st.divider()
+st.subheader("🚚 Tipo de unidad")
+
+nueva_unidad = st.text_input(
+    "Nuevo tipo de unidad",
+    placeholder="Ej. TORTON / RABON / PLATAFORMA 53 / CAJA REFRIGERADA 48",
+    key="nueva_unidad"
+)
+
+if st.button("➕ Agregar tipo de unidad", key="btn_add_unidad"):
+    unidad = (nueva_unidad or "").strip().upper()
+
+    if not unidad:
+        st.warning("Escribe un tipo de unidad.")
+    else:
+        existe = pd.read_sql(
+            "SELECT 1 FROM CAT_TIPO_UNIDAD WHERE TIPO_UNIDAD = ? LIMIT 1",
+            conn,
+            params=(unidad,)
+        )
+
+        if not existe.empty:
+            st.warning("⚠️ El tipo de unidad ya existe.")
+        else:
+            conn.execute(
+                "INSERT INTO CAT_TIPO_UNIDAD (TIPO_UNIDAD) VALUES (?)",
+                (unidad,)
+            )
+            conn.commit()
+            st.success("✅ Tipo de unidad agregado.")
+            st.rerun()
+
+df_unidades = pd.read_sql(
+    "SELECT TIPO_UNIDAD FROM CAT_TIPO_UNIDAD ORDER BY TIPO_UNIDAD",
+    conn
+)
+st.dataframe(df_unidades, use_container_width=True)
+
+# Cierre seguro
+try:
+    conn.close()
+except Exception:
+    pass
+
 
 
