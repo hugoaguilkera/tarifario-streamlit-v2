@@ -6,6 +6,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
+import os
 from pathlib import Path
 
 st.set_page_config(page_title="Captura de tarifas", layout="wide")
@@ -20,6 +21,19 @@ st.title("🟩 Captura de tarifas y costos")
 if st.button("RESET ESTADO"):
     st.session_state.clear()
     st.rerun()
+
+# =====================================================
+# (OPCIONAL PERO SENIOR) HELPERS SQL
+# =====================================================
+def df_sql(query: str, params=()):
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        return pd.read_sql(query, conn, params=params)
+
+def exec_sql(query: str, params=()):
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.execute(query, params)
+        conn.commit()
+
 # =====================================================
 # BLOQUE 0.1 - CARGA SEGURA DE TARIFA EN SESSION_STATE
 # =====================================================
@@ -57,7 +71,6 @@ for c in CAMPOS_SESSION:
 if "tarifa_cargada" not in st.session_state:
     st.session_state["tarifa_cargada"] = False
 
-
 # 🎯 MAPEO EXPLÍCITO UI -> BD (NUNCA usar .upper())
 MAPEO_SESSION_BD = {
     "pais_origen": "PAIS_ORIGEN",
@@ -90,7 +103,6 @@ if (
     and st.session_state["tarifa_base_tmp"] is not None
     and not st.session_state["tarifa_cargada"]
 ):
-
     tarifa_base = st.session_state["tarifa_base_tmp"]
 
     for campo_ui, campo_bd in MAPEO_SESSION_BD.items():
@@ -99,53 +111,51 @@ if (
 
     st.session_state["tarifa_cargada"] = True
     st.session_state["tarifa_base_tmp"] = None  # evita que se “pegue”
-
 else:
     tarifa_base = None
+
 # =====================================================
 # BLOQUE 0 - BUSCADOR RÁPIDO DE TARIFAS (EDICIÓN / NUEVA)
 # =====================================================
 st.subheader("🔍 Buscar tarifa existente para modificar")
 
 # --- Carga base (solo ACTIVA=1) ---
-with sqlite3.connect(DB_NAME) as conn:
-    df_existentes = pd.read_sql(
-        """
-        SELECT
-            ID_TARIFA,
-            TRANSPORTISTA,
-            CLIENTE,
-            TIPO_UNIDAD,
+df_existentes = df_sql(
+    """
+    SELECT
+        ID_TARIFA,
+        TRANSPORTISTA,
+        CLIENTE,
+        TIPO_UNIDAD,
 
-            PRECIO_VIAJE_SENCILLO,
-            PRECIO_VIAJE_REDONDO,
-            TARIFA_VIAJE_SENCILLO,
-            TARIFA_VIAJE_REDONDO,
-            TARIFA_VIAJE_FULL,
+        PRECIO_VIAJE_SENCILLO,
+        PRECIO_VIAJE_REDONDO,
+        TARIFA_VIAJE_SENCILLO,
+        TARIFA_VIAJE_REDONDO,
+        TARIFA_VIAJE_FULL,
 
-            USA_FREIGHT,
-            MEXICAN_FREIGHT,
-            CROSSING,
-            BORDER_CROSSING,
-            ADUANAS_ARANCELES,
-            INSURANCE,
-            PEAJES,
-            MANIOBRAS,
+        USA_FREIGHT,
+        MEXICAN_FREIGHT,
+        CROSSING,
+        BORDER_CROSSING,
+        ADUANAS_ARANCELES,
+        INSURANCE,
+        PEAJES,
+        MANIOBRAS,
 
-            PAIS_ORIGEN,
-            ESTADO_ORIGEN,
-            CIUDAD_ORIGEN,
-            PAIS_DESTINO,
-            ESTADO_DESTINO,
-            CIUDAD_DESTINO,
+        PAIS_ORIGEN,
+        ESTADO_ORIGEN,
+        CIUDAD_ORIGEN,
+        PAIS_DESTINO,
+        ESTADO_DESTINO,
+        CIUDAD_DESTINO,
 
-            ALL_IN
-        FROM tarifario_estandar
-        WHERE ACTIVA = 1
-          AND ID_TARIFA IS NOT NULL
-        """,
-        conn
-    )
+        ALL_IN
+    FROM tarifario_estandar
+    WHERE ACTIVA = 1
+      AND ID_TARIFA IS NOT NULL
+    """
+)
 
 # --- Defensa si viene vacío ---
 if df_existentes.empty:
@@ -155,8 +165,8 @@ if df_existentes.empty:
     ])
 
 # ---------------- FILTROS DE BÚSQUEDA ----------------
-transportistas_list = ["Todos"] + sorted(df_existentes.get("TRANSPORTISTA", pd.Series()).dropna().unique().tolist())
-clientes_list = ["Todos"] + sorted(df_existentes.get("CLIENTE", pd.Series()).dropna().unique().tolist())
+transportistas_list = ["Todos"] + sorted(df_existentes.get("TRANSPORTISTA", pd.Series(dtype=object)).dropna().unique().tolist())
+clientes_list = ["Todos"] + sorted(df_existentes.get("CLIENTE", pd.Series(dtype=object)).dropna().unique().tolist())
 
 filtro_transportista = st.selectbox(
     "Filtrar por transportista",
@@ -188,7 +198,6 @@ opciones_tarifa = ["NUEVA"] + ids
 def etiqueta_tarifa(x: str) -> str:
     if x == "NUEVA":
         return "➕ NUEVA TARIFA"
-    # Buscar fila (defensivo)
     fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == str(x)]
     if fila.empty:
         return f"{x} | (no encontrada)"
@@ -234,7 +243,6 @@ else:
 # BOTÓN - ADMINISTRAR CATÁLOGOS
 # =====================================================
 if st.button("🛠️ Administrar catálogos", key="btn_ir_catalogos"):
-    # ✅ Debe ser exactamente el nombre del archivo en /pages del repo
     st.switch_page("pages/1_Administrar_catalogos.py")
 
 # =====================================================
@@ -242,24 +250,21 @@ if st.button("🛠️ Administrar catálogos", key="btn_ir_catalogos"):
 # =====================================================
 st.subheader("📌 Datos del servicio")
 
-with sqlite3.connect(DB_NAME) as conn:
-    c1, c2, c3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-    tipo_operacion = c1.selectbox(
-        "Tipo operación",
-        pd.read_sql(
-            "SELECT TIPO_OPERACION FROM CAT_TIPO_OPERACION ORDER BY TIPO_OPERACION",
-            conn
-        )["TIPO_OPERACION"].tolist(),
-        key="tipo_operacion"
-    )
+tipo_operacion = c1.selectbox(
+    "Tipo operación",
+    df_sql("SELECT TIPO_OPERACION FROM CAT_TIPO_OPERACION ORDER BY TIPO_OPERACION")["TIPO_OPERACION"].tolist(),
+    key="tipo_operacion"
+)
 
-    tipo_viaje = c2.selectbox(
-        "Tipo viaje",
-        ["SENCILLO", "REDONDO"],
-        key="tipo_viaje"
-    )
+tipo_viaje = c2.selectbox(
+    "Tipo viaje",
+    ["SENCILLO", "REDONDO"],
+    key="tipo_viaje"
+)
 
-    c3.empty()
+c3.empty()
 
-st.caption(f"DB PATH: {os.path.abspath(DB_NAME)}")
+st.caption(f"DB PATH: {DB_PATH}")
+
