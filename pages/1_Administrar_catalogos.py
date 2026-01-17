@@ -301,6 +301,44 @@ st.caption(
     "Este módulo es el punto único para dar de alta nuevos valores. "
     "Las pantallas de captura SOLO seleccionan."
 )
+# =====================================================
+# ⚙️ TIPO DE OPERACIÓN
+# =====================================================
+st.divider()
+st.subheader("⚙️ Tipo de operación")
+
+c1, c2 = st.columns([3, 1])
+with c1:
+    nuevo_tipo_operacion = st.text_input(
+        "Nuevo tipo de operación",
+        placeholder="Ej. EXPORTACIÓN / IMPORTACIÓN / CROSS DOCK",
+        key="cat_nuevo_tipo_operacion"
+    )
+with c2:
+    if st.button("➕ Agregar tipo de operación", key="cat_btn_add_tipo_operacion"):
+        nuevo = (nuevo_tipo_operacion or "").strip().upper()
+
+        if not nuevo:
+            st.warning("Escribe un tipo de operación.")
+        else:
+            existe = df_sql(
+                "SELECT 1 FROM CAT_TIPO_OPERACION WHERE TIPO_OPERACION = ? LIMIT 1",
+                (nuevo,)
+            )
+            if not existe.empty:
+                st.warning("⚠️ El tipo de operación ya existe.")
+            else:
+                exec_sql(
+                    "INSERT INTO CAT_TIPO_OPERACION (TIPO_OPERACION) VALUES (?)",
+                    (nuevo,)
+                )
+                st.success("✅ Tipo de operación agregado correctamente.")
+                st.rerun()
+
+df_tipo_operacion = df_sql(
+    "SELECT TIPO_OPERACION FROM CAT_TIPO_OPERACION ORDER BY TIPO_OPERACION"
+)
+st.dataframe(df_tipo_operacion, use_container_width=True)
 
 conn.close()
 
