@@ -189,6 +189,118 @@ else:
         st.success("✅ Cliente reactivado correctamente.")
         st.rerun()
 
+# =====================================================
+# 🚛 TRANSPORTISTAS
+# =====================================================
+st.divider()
+st.subheader("🚛 Transportistas")
+
+# --- Alta ---
+c1, c2 = st.columns([3, 1])
+with c1:
+    nuevo_transportista = st.text_input(
+        "Nuevo transportista",
+        placeholder="Ej. 100 LOGISTICS / UNIMEX / ARLEX",
+        key="cat_nuevo_transportista"
+    )
+with c2:
+    if st.button("➕ Agregar transportista", key="cat_btn_add_transportista"):
+        nuevo = (nuevo_transportista or "").strip().upper()
+
+        if not nuevo:
+            st.warning("Escribe un nombre de transportista.")
+        else:
+            existe = df_sql(
+                "SELECT 1 FROM CAT_TRANSPORTISTAS WHERE TRANSPORTISTA = ? LIMIT 1",
+                (nuevo,)
+            )
+            if not existe.empty:
+                st.warning("⚠️ El transportista ya existe.")
+            else:
+                exec_sql(
+                    "INSERT INTO CAT_TRANSPORTISTAS (TRANSPORTISTA, ACTIVO) VALUES (?, 1)",
+                    (nuevo,)
+                )
+                st.success("✅ Transportista agregado correctamente.")
+                st.rerun()
+
+# --- Tabla (activos e inactivos) ---
+df_transportistas = df_sql(
+    """
+    SELECT TRANSPORTISTA, ACTIVO
+    FROM CAT_TRANSPORTISTAS
+    ORDER BY TRANSPORTISTA
+    """
+)
+st.dataframe(df_transportistas, use_container_width=True)
+
+# =====================================================
+# 🚫 Desactivar transportista
+# =====================================================
+st.subheader("🚫 Desactivar transportista")
+
+df_trp_activos = df_sql(
+    "SELECT TRANSPORTISTA FROM CAT_TRANSPORTISTAS WHERE ACTIVO = 1 ORDER BY TRANSPORTISTA"
+)
+
+if df_trp_activos.empty:
+    st.info("No hay transportistas activos.")
+else:
+    transportista_off = st.selectbox(
+        "Selecciona transportista a desactivar",
+        df_trp_activos["TRANSPORTISTA"].tolist(),
+        key="cat_transportista_off"
+    )
+
+    confirmar_trp = st.checkbox(
+        "Confirmo que quiero desactivar este transportista",
+        key="cat_conf_trp_off"
+    )
+
+    if st.button("❌ Desactivar", key="cat_btn_off_transportista"):
+        if not confirmar_trp:
+            st.error("Debes confirmar antes de desactivar.")
+        else:
+            exec_sql(
+                "UPDATE CAT_TRANSPORTISTAS SET ACTIVO = 0 WHERE TRANSPORTISTA = ?",
+                (transportista_off,)
+            )
+            st.success("✅ Transportista desactivado.")
+            st.rerun()
+
+# =====================================================
+# ♻️ Reactivar transportista
+# =====================================================
+st.subheader("♻️ Reactivar transportista")
+
+df_trp_inactivos = df_sql(
+    "SELECT TRANSPORTISTA FROM CAT_TRANSPORTISTAS WHERE ACTIVO = 0 ORDER BY TRANSPORTISTA"
+)
+
+if df_trp_inactivos.empty:
+    st.info("No hay transportistas inactivos.")
+else:
+    transportista_on = st.selectbox(
+        "Selecciona transportista a reactivar",
+        df_trp_inactivos["TRANSPORTISTA"].tolist(),
+        key="cat_transportista_on"
+    )
+
+    if st.button("✅ Reactivar", key="cat_btn_on_transportista"):
+        exec_sql(
+            "UPDATE CAT_TRANSPORTISTAS SET ACTIVO = 1 WHERE TRANSPORTISTA = ?",
+            (transportista_on,)
+        )
+        st.success("✅ Transportista reactivado.")
+        st.rerun()
+
+# =====================================================
+# 📌 NOTA PROFESIONAL
+# =====================================================
+st.caption(
+    "Este módulo es el punto único para dar de alta nuevos valores. "
+    "Las pantallas de captura SOLO seleccionan."
+)
 
 conn.close()
 
