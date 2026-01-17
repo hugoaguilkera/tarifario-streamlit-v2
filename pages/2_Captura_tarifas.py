@@ -616,3 +616,223 @@ moneda_tarifa = c4.selectbox(
     index=0 if moneda_tarifa_default == "MXN" else 1,
     key="moneda_tarifa"
 )
+# =====================================================
+# BLOQUE E - COSTOS + ALL IN + INFO + GUARDAR (ROBUSTO)
+# =====================================================
+st.subheader("📦 Costos")
+
+# --- COSTOS (precarga desde session_state por key) ---
+c1, c2, c3, c4 = st.columns(4)
+usa_freight = c1.number_input("USA Freight", min_value=0.0, step=50.0, key="usa_freight")
+mexican_freight = c2.number_input("Mexican Freight", min_value=0.0, step=50.0, key="mexican_freight")
+crossing = c3.number_input("Crossing", min_value=0.0, step=50.0, key="crossing")
+border_crossing = c4.number_input("Border Crossing", min_value=0.0, step=50.0, key="border_crossing")
+
+c5, c6, c7, c8 = st.columns(4)
+aduanas_aranceles = c5.number_input("Aduanas / Aranceles", min_value=0.0, step=50.0, key="aduanas_aranceles")
+insurance = c6.number_input("Seguro", min_value=0.0, step=50.0, key="insurance")
+peajes = c7.number_input("Peajes", min_value=0.0, step=50.0, key="peajes")
+maniobras = c8.number_input("Maniobras", min_value=0.0, step=50.0, key="maniobras")
+
+# =====================================================
+# BLOQUE E.1 - ALL IN (AUTOMÁTICO)
+# =====================================================
+all_in = (
+    float(usa_freight)
+    + float(mexican_freight)
+    + float(crossing)
+    + float(border_crossing)
+    + float(aduanas_aranceles)
+    + float(insurance)
+    + float(peajes)
+    + float(maniobras)
+)
+
+st.subheader("🧮 ALL IN (Costo total automático)")
+st.number_input("ALL IN", value=float(all_in), format="%.2f", disabled=True)
+
+# =====================================================
+# BLOQUE E.2 - INFORMACIÓN OPERATIVA ADICIONAL
+# =====================================================
+st.subheader("📝 Información operativa adicional")
+
+c1, c2 = st.columns(2)
+
+with c1:
+    remark = st.text_area("Remark / Observaciones", key="remark")
+    requerimiento = st.text_area("Requerimiento especial", key="requerimiento")
+    direccion_recoleccion = st.text_input("Dirección de recolección", key="direccion_recoleccion")
+    destino_empresa = st.text_input("Empresa destino", key="destino_empresa")
+
+with c2:
+    destino_direccion = st.text_input("Dirección destino", key="destino_direccion")
+    team_driver = st.checkbox("Team driver", key="team_driver")
+    waiting = st.checkbox("Waiting", key="waiting")
+    free_time = st.number_input("Free time (horas)", min_value=0, step=1, key="free_time")
+    costo_waiting = st.number_input("Costo waiting charge", min_value=0.0, step=100.0, key="costo_waiting")
+    trucking_cancel_fee = st.number_input("Trucking cancel fee", min_value=0.0, step=100.0, key="trucking_cancel_fee")
+
+# =====================================================
+# BLOQUE E.3 - VALIDACIONES
+# =====================================================
+st.subheader("💾 Guardar tarifa")
+
+errores = []
+if float(precio_sencillo) == 0.0 and float(precio_redondo) == 0.0:
+    errores.append("Debes capturar al menos un PRECIO (sencillo o redondo).")
+
+if float(all_in) == 0.0:
+    errores.append("Debes capturar el ALL IN (costos).")
+
+if errores:
+    st.error(" | ".join(errores))
+    st.stop()
+
+# =====================================================
+# BLOQUE E.4 - VALIDAR DUPLICADO (misma ruta/proveedor)
+# =====================================================
+with sqlite3.connect(str(DB_PATH)) as conn:
+    cur = conn.cursor()
+    duplicado = cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM tarifario_estandar
+        WHERE
+            TRANSPORTISTA = ?
+            AND TIPO_UNIDAD = ?
+            AND PAIS_ORIGEN = ?
+            AND ESTADO_ORIGEN = ?
+            AND CIUDAD_ORIGEN = ?
+            AND PAIS_DESTINO = ?
+            AND ESTADO_DESTINO = ?
+            AND CIUDAD_DESTINO = ?
+            AND ACTIVA = 1
+        """,
+        (
+            transportista,
+            tipo_unidad,
+            pais_origen,
+            estado_origen,
+            ciudad_origen,
+            pais_destino,
+            estado_destino,
+            ciudad_destino,
+        ),
+    ).fetchone()[0]
+
+if duplicado > 0:
+    st.warning("⚠️ Ya existe una tarifa ACTIVA con el mismo proveedor y la misma ruta.")
+    confirmar = st.checkbox("Confirmo que deseo guardar una nueva versión", key="confirmar_version_nueva")
+else:
+    confirmar = True
+
+# =====================================================
+# BLOQUE E.5 - INSERT FINAL
+# =====================================================
+if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            INSERT INTO tarifario_estandar (
+                RESPONSABLE,
+                TIPO_DE_OPERACION,
+                TIPO_DE_VIAJE,
+                TIPO_UNIDAD,
+                TRANSPORTISTA,
+                CLIENTE,
+
+                PAIS_ORIGEN,
+                ESTADO_ORIGEN,
+                CIUDAD_ORIGEN,
+                PAIS_DESTINO,
+                ESTADO_DESTINO,
+                CIUDAD_DESTINO,
+
+                TARIFA_VIAJE_SENCILLO,
+                TARIFA_VIAJE_REDONDO,
+                TARIFA_VIAJE_FULL,
+
+                PRECIO_VIAJE_SENCILLO,
+                PRECIO_VIAJE_REDONDO,
+                MONEDA,
+
+                USA_FREIGHT,
+                MEXICAN_FREIGHT,
+                CROSSING,
+                BORDER_CROSSING,
+                ADUANAS_ARANCELES,
+                INSURANCE,
+                PEAJES,
+                MANIOBRAS,
+                ALL_IN,
+
+                REMARK,
+                REQUERIMIENTO,
+                DIRECCION_DE_RECOLECCION,
+                DESTINO_EMPRESA,
+                DESTINO_DIRECCION,
+                TEAM_DRIVER,
+                WAITING,
+                COSTO_DE_WAITING_CHARGE,
+                FREE_TIME,
+                TRUCKING_CANCEL_FEE
+            )
+            VALUES (?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?,
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                1,  # RESPONSABLE (temporal)
+                tipo_operacion,
+                tipo_viaje,
+                tipo_unidad,
+                transportista,
+                cliente,
+
+                pais_origen,
+                estado_origen,
+                ciudad_origen,
+                pais_destino,
+                estado_destino,
+                ciudad_destino,
+
+                float(tarifa_sencillo),
+                float(tarifa_redondo),
+                float(tarifa_full),
+
+                float(precio_sencillo),
+                float(precio_redondo),
+                moneda,
+
+                float(usa_freight),
+                float(mexican_freight),
+                float(crossing),
+                float(border_crossing),
+                float(aduanas_aranceles),
+                float(insurance),
+                float(peajes),
+                float(maniobras),
+                float(all_in),
+
+                remark,
+                requerimiento,
+                direccion_recoleccion,
+                destino_empresa,
+                destino_direccion,
+                int(team_driver),
+                int(waiting),
+                float(costo_waiting),
+                int(free_time),
+                float(trucking_cancel_fee),
+            ),
+        )
+
+        conn.commit()
+
+    st.success("✅ Tarifa guardada correctamente")
+    st.rerun()
