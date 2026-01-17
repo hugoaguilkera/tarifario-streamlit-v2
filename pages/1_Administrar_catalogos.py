@@ -1,5 +1,6 @@
 # =====================================================
-# PAGES - ADMINISTRAR CATÁLOGOS (ESTABLE)
+# PAGES - ADMINISTRAR CATÁLOGOS
+# BLOQUE 1 - IMPORTS + CONFIG + BD (Cloud/Local)
 # =====================================================
 
 import sqlite3
@@ -11,7 +12,35 @@ import streamlit as st
 st.set_page_config(page_title="Catálogos", layout="wide")
 
 st.title("🛠️ Administración de catálogos")
-st.info("Aquí se administran clientes, transportistas y catálogos base.")
+st.info("Aquí se administran clientes, transportistas y futuros catálogos.")
+
+# --- DB robusto (Cloud y local) ---
+REPO_ROOT = Path(__file__).resolve().parents[1]   # repo/
+DB_PATH = REPO_ROOT / "tarifario.db"             # repo/tarifario.db
+
+if not DB_PATH.exists():
+    st.error(f"❌ No encuentro la BD en: {DB_PATH}")
+    st.stop()
+
+conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+
+def df_sql(query: str, params: tuple = ()) -> pd.DataFrame:
+    return pd.read_sql(query, conn, params=params)
+
+def exec_sql(query: str, params: tuple = ()) -> None:
+    cur = conn.cursor()
+    cur.execute(query, params)
+    conn.commit()
+
+# (Opcional) Diagnóstico rápido
+with st.expander("🔎 Diagnóstico", expanded=False):
+    st.caption(f"DB: {DB_PATH}")
+    tablas = df_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    st.dataframe(tablas, use_container_width=True)
+
+# Cierre seguro (al final del archivo ponlo también)
+# conn.close()
+
 
 # =====================================================
 # BLOQUE 1 - BD: path robusto (Cloud / Local)
