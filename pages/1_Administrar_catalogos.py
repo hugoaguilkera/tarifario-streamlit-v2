@@ -71,76 +71,125 @@ with st.expander("🔎 Diagnóstico"):
     st.write("Tablas detectadas:")
     st.dataframe(tablas, use_container_width=True)
 
+## =====================================================
+# 👤 CLIENTES
 # =====================================================
-# BLOQUE 3 - CLIENTES (Alta + Tabla)
-# =====================================================
-st.divider()
 st.subheader("👤 Clientes")
 
-c1, c2 = st.columns([2, 1])
+# --- Alta de cliente ---
+c1, c2 = st.columns([3, 1])
 with c1:
-    nuevo_cliente = st.text_input("Nuevo cliente", placeholder="Ej. SUNGWOO / DONGHEE / NIFCO")
+    nuevo_cliente = st.text_input(
+        "Nuevo cliente",
+        placeholder="Ej. SUNGWOO / DONGHEE / NIFCO",
+        key="cat_nuevo_cliente"
+    )
 with c2:
-    if st.button("➕ Agregar cliente"):
+    if st.button("➕ Agregar cliente", key="cat_btn_add_cliente"):
         nuevo = (nuevo_cliente or "").strip().upper()
+
         if not nuevo:
             st.warning("Escribe un nombre de cliente.")
         else:
-            existe = df_sql("SELECT 1 FROM CAT_CLIENTES WHERE CLIENTE = ? LIMIT 1", (nuevo,))
+            existe = df_sql(
+                "SELECT 1 FROM CAT_CLIENTES WHERE CLIENTE = ? LIMIT 1",
+                (nuevo,)
+            )
             if not existe.empty:
                 st.warning("⚠️ El cliente ya existe.")
             else:
-                exec_sql("INSERT INTO CAT_CLIENTES (CLIENTE, ACTIVO) VALUES (?, 1)", (nuevo,))
-                st.success("✅ Cliente agregado.")
+                exec_sql(
+                    "INSERT INTO CAT_CLIENTES (CLIENTE, ACTIVO) VALUES (?, 1)",
+                    (nuevo,)
+                )
+                st.success("✅ Cliente agregado correctamente.")
                 st.rerun()
 
-df_clientes = df_sql("SELECT CLIENTE, ACTIVO FROM CAT_CLIENTES ORDER BY CLIENTE")
+# --- Tabla de clientes ---
+df_clientes = df_sql(
+    """
+    SELECT CLIENTE, ACTIVO
+    FROM CAT_CLIENTES
+    ORDER BY CLIENTE
+    """
+)
 st.dataframe(df_clientes, use_container_width=True)
 
 # =====================================================
-# BLOQUE 4 - CLIENTES (Desactivar / Reactivar)
+# 🗑️ Desactivar cliente (confirmación)
 # =====================================================
-st.subheader("🗑️ Desactivar cliente")
+st.subheader("🗑️ Desactivar cliente (confirmación)")
 
-df_activos = df_sql("SELECT CLIENTE FROM CAT_CLIENTES WHERE ACTIVO = 1 ORDER BY CLIENTE")
+df_activos = df_sql(
+    "SELECT CLIENTE FROM CAT_CLIENTES WHERE ACTIVO = 1 ORDER BY CLIENTE"
+)
+
 if df_activos.empty:
-    st.info("No hay clientes activos.")
+    st.info("No hay clientes activos para desactivar.")
 else:
-    cliente_off = st.selectbox("Cliente", df_activos["CLIENTE"].tolist())
+    cliente_desactivar = st.selectbox(
+        "Selecciona cliente a desactivar",
+        df_activos["CLIENTE"].tolist(),
+        key="cat_cliente_desactivar"
+    )
 
+    # --- Validar si tiene tarifas ---
     try:
-        total_tarifas = df_sql(
+        tarifas = df_sql(
             "SELECT COUNT(*) AS TOTAL FROM tarifario_estandar WHERE CLIENTE = ?",
-            (cliente_off,)
+            (cliente_desactivar,)
         )["TOTAL"].iloc[0]
     except Exception:
-        total_tarifas = "N/A"
+        tarifas = "N/A"
 
-    st.warning(f"⚠️ Este cliente tiene {total_tarifas} tarifa(s). Se inactivará, no se borra historial.")
-    ok = st.checkbox("Confirmo desactivar")
+    st.warning(
+        f"⚠️ Este cliente tiene {tarifas} tarifa(s) registrada(s). "
+        "No se borrarán, pero el cliente quedará inactivo."
+    )
 
-    if st.button("🚫 Desactivar"):
-        if not ok:
-            st.error("Debes confirmar.")
+    confirmacion = st.checkbox(
+        "Entiendo el impacto y deseo continuar",
+        key="cat_conf_desactivar"
+    )
+
+    if st.button("🚫 Desactivar cliente", key="cat_btn_desactivar"):
+        if not confirmacion:
+            st.error("Debes confirmar antes de continuar.")
         else:
-            exec_sql("UPDATE CAT_CLIENTES SET ACTIVO = 0 WHERE CLIENTE = ?", (cliente_off,))
-            st.success("✅ Cliente desactivado.")
+            exec_sql(
+                "UPDATE CAT_CLIENTES SET ACTIVO = 0 WHERE CLIENTE = ?",
+                (cliente_desactivar,)
+            )
+            st.success("✅ Cliente desactivado correctamente.")
             st.rerun()
 
+# =====================================================
+# ♻️ Reactivar cliente
+# =====================================================
 st.subheader("♻️ Reactivar cliente")
-df_inact = df_sql("SELECT CLIENTE FROM CAT_CLIENTES WHERE ACTIVO = 0 ORDER BY CLIENTE")
-if df_inact.empty:
+
+df_inactivos = df_sql(
+    "SELECT CLIENTE FROM CAT_CLIENTES WHERE ACTIVO = 0 ORDER BY CLIENTE"
+)
+
+if df_inactivos.empty:
     st.info("No hay clientes inactivos.")
 else:
-    cliente_on = st.selectbox("Cliente inactivo", df_inact["CLIENTE"].tolist())
-    if st.button("✅ Reactivar"):
-        exec_sql("UPDATE CAT_CLIENTES SET ACTIVO = 1 WHERE CLIENTE = ?", (cliente_on,))
-        st.success("✅ Cliente reactivado.")
+    cliente_reactivar = st.selectbox(
+        "Selecciona cliente a reactivar",
+        df_inactivos["CLIENTE"].tolist(),
+        key="cat_cliente_reactivar"
+    )
+
+    if st.button("✅ Reactivar cliente", key="cat_btn_reactivar"):
+        exec_sql(
+            "UPDATE CAT_CLIENTES SET ACTIVO = 1 WHERE CLIENTE = ?",
+            (cliente_reactivar,)
+        )
+        st.success("✅ Cliente reactivado correctamente.")
         st.rerun()
 
-# =====================================================
-# FIN
-# =====================================================
+
 conn.close()
 
 
