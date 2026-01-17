@@ -254,5 +254,283 @@ tipo_viaje = c2.selectbox("Tipo viaje", ["SENCILLO", "REDONDO"], key="tipo_viaje
 c3.empty()
 
 st.caption(f"DB PATH: {DB_PATH}")
+# =====================================================
+# BLOQUE B - RUTA (NORMALIZADA Y SEGURA) ✅ (CLOUD/LOCAL)
+# =====================================================
+
+st.subheader("📍 Ruta")
+
+with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
+
+    # ---------- PAÍSES ----------
+    df_paises = pd.read_sql(
+        "SELECT ID_PAIS, PAIS FROM CAT_PAISES WHERE ACTIVO = 1 ORDER BY PAIS",
+        conn
+    )
+
+    if df_paises.empty:
+        st.error("No hay países activos en CAT_PAISES.")
+        st.stop()
+
+    df_paises["PAIS"] = df_paises["PAIS"].astype(str).str.strip().str.upper()
+    paises = df_paises["PAIS"].tolist()
+
+    # ---------- PAÍS ORIGEN ----------
+    pais_origen_prev = (st.session_state.get("pais_origen") or "").strip().upper()
+
+    pais_origen = st.selectbox(
+        "País origen",
+        paises,
+        index=paises.index(pais_origen_prev) if pais_origen_prev in paises else 0,
+        key="pais_origen"
+    )
+
+    # Si cambia país, reset dependientes (solo cuando el usuario está editando)
+    if st.session_state.get("pais_origen_prev") and st.session_state["pais_origen_prev"] != pais_origen:
+        st.session_state["estado_origen"] = None
+        st.session_state["ciudad_origen"] = None
+    st.session_state["pais_origen_prev"] = pais_origen
+
+    id_pais_origen = int(df_paises.loc[df_paises["PAIS"] == pais_origen, "ID_PAIS"].iloc[0])
+
+    # ---------- ESTADO ORIGEN ----------
+    df_estados_origen = pd.read_sql(
+        """
+        SELECT ID_ESTADO, ESTADO
+        FROM CAT_ESTADOS_NEW
+        WHERE ID_PAIS = ? AND ACTIVO = 1
+        ORDER BY ESTADO
+        """,
+        conn,
+        params=(id_pais_origen,)
+    )
+
+    if df_estados_origen.empty:
+        st.warning("No hay estados activos para el país origen.")
+        estado_origen = None
+        id_estado_origen = None
+        st.session_state["estado_origen"] = None
+        st.session_state["ciudad_origen"] = None
+    else:
+        df_estados_origen["ESTADO"] = df_estados_origen["ESTADO"].astype(str).str.strip()
+        estados_origen = df_estados_origen["ESTADO"].tolist()
+
+        estado_origen_prev = st.session_state.get("estado_origen")
+        estado_origen = st.selectbox(
+            "Estado origen",
+            estados_origen,
+            index=estados_origen.index(estado_origen_prev) if estado_origen_prev in estados_origen else 0,
+            key="estado_origen"
+        )
+
+        if st.session_state.get("estado_origen_prev") and st.session_state["estado_origen_prev"] != estado_origen:
+            st.session_state["ciudad_origen"] = None
+        st.session_state["estado_origen_prev"] = estado_origen
+
+        id_estado_origen = int(
+            df_estados_origen.loc[df_estados_origen["ESTADO"] == estado_origen, "ID_ESTADO"].iloc[0]
+        )
+
+    # ---------- CIUDAD ORIGEN ----------
+    if id_estado_origen is None:
+        ciudad_origen = None
+        st.info("Primero selecciona un estado origen.")
+        st.session_state["ciudad_origen"] = None
+    else:
+        df_ciudades_origen = pd.read_sql(
+            """
+            SELECT ID_CIUDAD, CIUDAD
+            FROM CAT_CIUDADES
+            WHERE ID_ESTADO = ? AND ACTIVO = 1
+            ORDER BY CIUDAD
+            """,
+            conn,
+            params=(id_estado_origen,)
+        )
+
+        if df_ciudades_origen.empty:
+            st.warning("No hay ciudades activas para el estado origen.")
+            ciudad_origen = None
+            st.session_state["ciudad_origen"] = None
+        else:
+            df_ciudades_origen["CIUDAD"] = df_ciudades_origen["CIUDAD"].astype(str).str.strip()
+            ciudades_origen = df_ciudades_origen["CIUDAD"].tolist()
+
+            ciudad_origen_prev = st.session_state.get("ciudad_origen")
+            ciudad_origen = st.selectbox(
+                "Ciudad origen",
+                ciudades_origen,
+                index=ciudades_origen.index(ciudad_origen_prev) if ciudad_origen_prev in ciudades_origen else 0,
+                key="ciudad_origen"
+            )
+
+    st.divider()
+
+    # ---------- PAÍS DESTINO ----------
+    pais_destino_prev = (st.session_state.get("pais_destino") or "").strip().upper()
+
+    pais_destino = st.selectbox(
+        "País destino",
+        paises,
+        index=paises.index(pais_destino_prev) if pais_destino_prev in paises else 0,
+        key="pais_destino"
+    )
+
+    if st.session_state.get("pais_destino_prev") and st.session_state["pais_destino_prev"] != pais_destino:
+        st.session_state["estado_destino"] = None
+        st.session_state["ciudad_destino"] = None
+    st.session_state["pais_destino_prev"] = pais_destino
+
+    id_pais_destino = int(df_paises.loc[df_paises["PAIS"] == pais_destino, "ID_PAIS"].iloc[0])
+
+    # ---------- ESTADO DESTINO ----------
+    df_estados_destino = pd.read_sql(
+        """
+        SELECT ID_ESTADO, ESTADO
+        FROM CAT_ESTADOS_NEW
+        WHERE ID_PAIS = ? AND ACTIVO = 1
+        ORDER BY ESTADO
+        """,
+        conn,
+        params=(id_pais_destino,)
+    )
+
+    if df_estados_destino.empty:
+        st.warning("No hay estados activos para el país destino.")
+        estado_destino = None
+        id_estado_destino = None
+        st.session_state["estado_destino"] = None
+        st.session_state["ciudad_destino"] = None
+    else:
+        df_estados_destino["ESTADO"] = df_estados_destino["ESTADO"].astype(str).str.strip()
+        estados_destino = df_estados_destino["ESTADO"].tolist()
+
+        estado_destino_prev = st.session_state.get("estado_destino")
+        estado_destino = st.selectbox(
+            "Estado destino",
+            estados_destino,
+            index=estados_destino.index(estado_destino_prev) if estado_destino_prev in estados_destino else 0,
+            key="estado_destino"
+        )
+
+        if st.session_state.get("estado_destino_prev") and st.session_state["estado_destino_prev"] != estado_destino:
+            st.session_state["ciudad_destino"] = None
+        st.session_state["estado_destino_prev"] = estado_destino
+
+        id_estado_destino = int(
+            df_estados_destino.loc[df_estados_destino["ESTADO"] == estado_destino, "ID_ESTADO"].iloc[0]
+        )
+
+    # ---------- CIUDAD DESTINO ----------
+    if id_estado_destino is None:
+        ciudad_destino = None
+        st.info("Primero selecciona un estado destino.")
+        st.session_state["ciudad_destino"] = None
+    else:
+        df_ciudades_destino = pd.read_sql(
+            """
+            SELECT ID_CIUDAD, CIUDAD
+            FROM CAT_CIUDADES
+            WHERE ID_ESTADO = ? AND ACTIVO = 1
+            ORDER BY CIUDAD
+            """,
+            conn,
+            params=(id_estado_destino,)
+        )
+
+        if df_ciudades_destino.empty:
+            st.warning("No hay ciudades activas para el estado destino.")
+            ciudad_destino = None
+            st.session_state["ciudad_destino"] = None
+        else:
+            df_ciudades_destino["CIUDAD"] = df_ciudades_destino["CIUDAD"].astype(str).str.strip()
+            ciudades_destino = df_ciudades_destino["CIUDAD"].tolist()
+
+            ciudad_destino_prev = st.session_state.get("ciudad_destino")
+            ciudad_destino = st.selectbox(
+                "Ciudad destino",
+                ciudades_destino,
+                index=ciudades_destino.index(ciudad_destino_prev) if ciudad_destino_prev in ciudades_destino else 0,
+                key="ciudad_destino"
+            )
+
+    st.divider()
+
+    # ---------- TIPO DE UNIDAD ----------
+    df_unidades = pd.read_sql(
+        "SELECT TIPO_UNIDAD FROM CAT_TIPO_UNIDAD ORDER BY TIPO_UNIDAD",
+        conn
+    )
+
+    if df_unidades.empty:
+        st.error("No hay registros en CAT_TIPO_UNIDAD.")
+        st.stop()
+
+    unidades = df_unidades["TIPO_UNIDAD"].astype(str).str.strip().tolist()
+    tipo_unidad_prev = st.session_state.get("tipo_unidad")
+
+    tipo_unidad = st.selectbox(
+        "Tipo de unidad",
+        unidades,
+        index=unidades.index(tipo_unidad_prev) if tipo_unidad_prev in unidades else 0,
+        key="tipo_unidad"
+    )
+
+
+# =====================================================
+# BLOQUE C - DATOS COMERCIALES ✅ ROBUSTO
+# =====================================================
+st.subheader("👤 Datos comerciales")
+
+with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
+    col_cli, col_trp = st.columns(2)
+
+    # ---------- CLIENTES (solo activos) ----------
+    lista_clientes = ["SIN CLIENTE"] + pd.read_sql(
+        "SELECT CLIENTE FROM CAT_CLIENTES WHERE ACTIVO = 1 ORDER BY CLIENTE",
+        conn
+    )["CLIENTE"].astype(str).tolist()
+
+    cliente_t = None
+    if tarifa_base is not None:
+        try:
+            cliente_t = tarifa_base.get("CLIENTE")
+        except Exception:
+            cliente_t = None
+
+    cliente_default = cliente_t if cliente_t in lista_clientes else "SIN CLIENTE"
+
+    cliente = col_cli.selectbox(
+        "Cliente",
+        lista_clientes,
+        index=lista_clientes.index(cliente_default),
+        key="cliente"
+    )
+
+    # ---------- TRANSPORTISTAS (solo activos) ----------
+    lista_transportistas = pd.read_sql(
+        "SELECT TRANSPORTISTA FROM CAT_TRANSPORTISTAS WHERE ACTIVO = 1 ORDER BY TRANSPORTISTA",
+        conn
+    )["TRANSPORTISTA"].astype(str).tolist()
+
+    if not lista_transportistas:
+        st.error("No hay transportistas activos en CAT_TRANSPORTISTAS.")
+        st.stop()
+
+    trp_t = None
+    if tarifa_base is not None:
+        try:
+            trp_t = tarifa_base.get("TRANSPORTISTA")
+        except Exception:
+            trp_t = None
+
+    transportista_default = trp_t if trp_t in lista_transportistas else lista_transportistas[0]
+
+    transportista = col_trp.selectbox(
+        "Transportista",
+        lista_transportistas,
+        index=lista_transportistas.index(transportista_default),
+        key="transportista"
+    )
 
 
