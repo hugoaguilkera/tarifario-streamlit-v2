@@ -478,27 +478,27 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
 
 
 # =====================================================
-# BLOQUE C - DATOS COMERCIALES ✅ ROBUSTO
+# BLOQUE C - DATOS COMERCIALES ✅ ROBUSTO (CLOUD/LOCAL)
 # =====================================================
 st.subheader("👤 Datos comerciales")
 
 with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
+
     col_cli, col_trp = st.columns(2)
 
     # ---------- CLIENTES (solo activos) ----------
-    lista_clientes = ["SIN CLIENTE"] + pd.read_sql(
+    df_cli = pd.read_sql(
         "SELECT CLIENTE FROM CAT_CLIENTES WHERE ACTIVO = 1 ORDER BY CLIENTE",
         conn
-    )["CLIENTE"].astype(str).tolist()
+    )
 
-    cliente_t = None
+    lista_clientes = ["SIN CLIENTE"] + df_cli["CLIENTE"].astype(str).tolist()
+
+    cliente_default = "SIN CLIENTE"
     if tarifa_base is not None:
-        try:
-            cliente_t = tarifa_base.get("CLIENTE")
-        except Exception:
-            cliente_t = None
-
-    cliente_default = cliente_t if cliente_t in lista_clientes else "SIN CLIENTE"
+        cli_tmp = str(tarifa_base.get("CLIENTE", "")).strip()
+        if cli_tmp in lista_clientes:
+            cliente_default = cli_tmp
 
     cliente = col_cli.selectbox(
         "Cliente",
@@ -508,23 +508,22 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
     )
 
     # ---------- TRANSPORTISTAS (solo activos) ----------
-    lista_transportistas = pd.read_sql(
+    df_trp = pd.read_sql(
         "SELECT TRANSPORTISTA FROM CAT_TRANSPORTISTAS WHERE ACTIVO = 1 ORDER BY TRANSPORTISTA",
         conn
-    )["TRANSPORTISTA"].astype(str).tolist()
+    )
+
+    lista_transportistas = df_trp["TRANSPORTISTA"].astype(str).tolist()
 
     if not lista_transportistas:
-        st.error("No hay transportistas activos en CAT_TRANSPORTISTAS.")
+        st.error("❌ No hay transportistas activos en CAT_TRANSPORTISTAS.")
         st.stop()
 
-    trp_t = None
+    transportista_default = lista_transportistas[0]
     if tarifa_base is not None:
-        try:
-            trp_t = tarifa_base.get("TRANSPORTISTA")
-        except Exception:
-            trp_t = None
-
-    transportista_default = trp_t if trp_t in lista_transportistas else lista_transportistas[0]
+        trp_tmp = str(tarifa_base.get("TRANSPORTISTA", "")).strip()
+        if trp_tmp in lista_transportistas:
+            transportista_default = trp_tmp
 
     transportista = col_trp.selectbox(
         "Transportista",
@@ -532,5 +531,88 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         index=lista_transportistas.index(transportista_default),
         key="transportista"
     )
+# =====================================================
+# BLOQUE D - TARIFAS (PRECARGA CONTROLADA) ✅ ROBUSTO
+# =====================================================
+st.subheader("💰 Tarifas")
 
+def _to_float(x, default=0.0):
+    try:
+        if x is None:
+            return float(default)
+        if isinstance(x, str) and x.strip() == "":
+            return float(default)
+        return float(x)
+    except Exception:
+        return float(default)
 
+# Defaults (si no existen columnas en BD, no truena)
+moneda_precio_default = "MXN"
+moneda_tarifa_default = "USD"
+
+if tarifa_base is not None:
+    moneda_precio_default = str(tarifa_base.get("MONEDA_PRECIO", tarifa_base.get("MONEDA", "MXN")) or "MXN").upper().strip()
+    moneda_tarifa_default = str(tarifa_base.get("MONEDA_TARIFA", tarifa_base.get("MONEDA", "USD")) or "USD").upper().strip()
+
+c1, c2, c3 = st.columns(3)
+
+precio_sencillo = c1.number_input(
+    "Precio viaje sencillo",
+    min_value=0.0,
+    step=50.0,
+    value=_to_float(tarifa_base.get("PRECIO_VIAJE_SENCILLO") if tarifa_base is not None else 0.0),
+    key="precio_viaje_sencillo"
+)
+
+precio_redondo = c2.number_input(
+    "Precio viaje redondo",
+    min_value=0.0,
+    step=50.0,
+    value=_to_float(tarifa_base.get("PRECIO_VIAJE_REDONDO") if tarifa_base is not None else 0.0),
+    key="precio_viaje_redondo"
+)
+
+moneda = c3.selectbox(
+    "Moneda (precio)",
+    ["MXN", "USD"],
+    index=0 if moneda_precio_default == "MXN" else 1,
+    key="moneda_precio"
+)
+
+# -----------------------------------------------------
+# TARIFAS NEGOCIADAS
+# -----------------------------------------------------
+st.subheader("📑 Tarifas negociadas")
+
+c1, c2, c3, c4 = st.columns(4)
+
+tarifa_sencillo = c1.number_input(
+    "Tarifa viaje sencillo",
+    min_value=0.0,
+    step=50.0,
+    value=_to_float(tarifa_base.get("TARIFA_VIAJE_SENCILLO") if tarifa_base is not None else 0.0),
+    key="tarifa_viaje_sencillo"
+)
+
+tarifa_redondo = c2.number_input(
+    "Tarifa viaje redondo",
+    min_value=0.0,
+    step=50.0,
+    value=_to_float(tarifa_base.get("TARIFA_VIAJE_REDONDO") if tarifa_base is not None else 0.0),
+    key="tarifa_viaje_redondo"
+)
+
+tarifa_full = c3.number_input(
+    "Tarifa full (opcional)",
+    min_value=0.0,
+    step=50.0,
+    value=_to_float(tarifa_base.get("TARIFA_VIAJE_FULL") if tarifa_base is not None else 0.0),
+    key="tarifa_viaje_full"
+)
+
+moneda_tarifa = c4.selectbox(
+    "Moneda (tarifa)",
+    ["MXN", "USD"],
+    index=0 if moneda_tarifa_default == "MXN" else 1,
+    key="moneda_tarifa"
+)
