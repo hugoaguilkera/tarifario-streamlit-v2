@@ -11,8 +11,8 @@ from pathlib import Path
 DB_NAME = "tarifario.db"
 TABLA = "tarifario_estandar"
 
-st.set_page_config(page_title="Impresión de Tarifas", layout="wide")
-st.title("🖨️ Impresión de Tarifas")
+st.set_page_config(page_title="Cotización", layout="wide")
+st.title("💰 Cotización")
 st.success("Pantalla de impresión cargada")
 
 # ===============================
