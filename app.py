@@ -518,8 +518,7 @@ if modo == "Administración":
 #     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 #     key="download_tarifario_btn",
 # )
-"download_tarifario_btn",
-)
+
 # =====================================================
 # BLOQUE 8 - EXPORTAR TARIFARIO FILTRADO A EXCEL
 # =====================================================
