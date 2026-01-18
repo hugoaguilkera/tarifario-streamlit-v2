@@ -1,4 +1,6 @@
 import streamlit as st
+st.write("IMPRESION CARGANDO OK")
+
 import sqlite3
 import pandas as pd
 from pathlib import Path
