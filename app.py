@@ -14,8 +14,22 @@ import streamlit as st
 
 DB_NAME = "tarifario.db"
 
-st.set_page_config(page_title="Tarifario Pactra", layout="wide")
+# ⚠️ set_page_config SOLO UNA VEZ Y AL INICIO
+st.set_page_config(
+    page_title="Tarifario Pactra",
+    layout="wide",
+)
+
 st.title("📊 Tarifario Pactra")
+
+# ===============================
+# MODO DE OPERACIÓN (ERP)
+# ===============================
+modo = st.radio(
+    "🧭 Modo de operación",
+    ["Consulta", "Administración"],
+    horizontal=True
+)
 
 # =====================================================
 # BLOQUE 2 - ESTILOS
@@ -43,6 +57,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 # =====================================================
 # BLOQUE 3 - FUNCIONES BD
 # =====================================================
@@ -55,10 +70,7 @@ def cargar_bd_completa() -> pd.DataFrame:
     no aquí (evita romper vistas y reportes).
     """
     conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql(
-        "SELECT * FROM tarifario_estandar",
-        conn
-    )
+    df = pd.read_sql("SELECT * FROM tarifario_estandar", conn)
     conn.close()
     return df
 
