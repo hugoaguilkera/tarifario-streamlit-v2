@@ -1,6 +1,5 @@
 import streamlit as st
-st.write("IMPRESION CARGANDO OK")
-
+st.write("COTIZACION VERSION NUEVA 2026")
 import sqlite3
 import pandas as pd
 from pathlib import Path
