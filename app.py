@@ -457,50 +457,68 @@ if modo == "Administración":
 
 
 # =====================================================
-# BLOQUE 6 - VER BASE DE DATOS (GENÉRICO)
+# BLOQUE 6 - TARIFARIO OFICIAL (SOLO LECTURA)
 # =====================================================
-st.divider()
-st.subheader("📋 Base de datos completa (SQLite)")
 
-ver_bd = st.checkbox("👁️ Ver base de datos completa", key="ver_bd_checkbox")
+if modo == "Administración":
 
-if ver_bd:
-    df_bd = cargar_bd_completa()
-    st.caption(f"Registros totales: {len(df_bd):,}")
-    st.dataframe(df_bd, use_container_width=True, height=450)
+    st.divider()
+    st.subheader("📋 Tarifario oficial (solo lectura)")
 
-    buffer = io.BytesIO()
-    df_bd.to_excel(buffer, index=False)
-    buffer.seek(0)
-
-    st.download_button(
-        "⬇ Descargar Excel",
-        data=buffer,
-        file_name="tarifario_completo.sqlite.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_bd_btn",
+    ver_bd = st.checkbox(
+        "👁️ Mostrar tarifario completo",
+        key="ver_bd_checkbox"
     )
+
+    if ver_bd:
+        df_bd = cargar_bd_completa()
+        st.caption(f"Registros totales: {len(df_bd):,}")
+
+        st.dataframe(
+            df_bd,
+            use_container_width=True,
+            height=450
+        )
+
+        buffer = io.BytesIO()
+        df_bd.to_excel(buffer, index=False)
+        buffer.seek(0)
+
+        st.download_button(
+            "⬇ Descargar Excel",
+            data=buffer,
+            file_name="tarifario_oficial.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_bd_btn",
+        )
+
 # =====================================================
 # BLOQUE 7 - TARIFARIO ESTÁNDAR (BD REAL)
 # =====================================================
-st.divider()
-st.subheader("🗄️ Tarifario estándar (Base oficial)")
-
-df_tarifario = cargar_bd_completa()
-st.caption(f"Total de registros: {len(df_tarifario):,}")
-
-st.dataframe(df_tarifario, use_container_width=True, height=450)
-
-buffer_tarifario = io.BytesIO()
-df_tarifario.to_excel(buffer_tarifario, index=False)
-buffer_tarifario.seek(0)
-
-st.download_button(
-    "⬇ Descargar tarifario estándar",
-    data=buffer_tarifario,
-    file_name="tarifario_estandar.sqlite.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    key="download_tarifario_btn",
+# st.divider()
+# st.subheader("🗄️ Tarifario estándar (Base oficial)")
+#
+# df_tarifario = cargar_bd_completa()
+# st.caption(f"Total de registros: {len(df_tarifario):,}")
+#
+# st.dataframe(
+#     df_tarifario,
+#     use_container_width=True,
+#     height=450
+# )
+#
+# buffer_tarifario = io.BytesIO()
+# df_tarifario.to_excel(buffer_tarifario, index=False)
+# buffer_tarifario.seek(0)
+#
+# st.download_button(
+#     "⬇ Descargar tarifario estándar",
+#     data=buffer_tarifario,
+#     file_name="tarifario_estandar.sqlite.xlsx",
+#     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#     key="download_tarifario_btn",
+# )
+"download_tarifario_btn",
 )
 # =====================================================
 # BLOQUE 8 - EXPORTAR TARIFARIO FILTRADO A EXCEL
