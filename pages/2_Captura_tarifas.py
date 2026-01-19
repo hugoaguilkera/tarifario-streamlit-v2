@@ -277,7 +277,6 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
 
     # ---------- PAÍS ORIGEN ----------
     pais_origen_prev = (st.session_state.get("pais_origen") or "").strip().upper()
-
     pais_origen = st.selectbox(
         "País origen",
         paises,
@@ -285,13 +284,16 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         key="pais_origen"
     )
 
-    # Si cambia país, reset dependientes (solo cuando el usuario está editando)
     if st.session_state.get("pais_origen_prev") and st.session_state["pais_origen_prev"] != pais_origen:
         st.session_state["estado_origen"] = None
         st.session_state["ciudad_origen"] = None
     st.session_state["pais_origen_prev"] = pais_origen
 
-    id_pais_origen = int(df_paises.loc[df_paises["PAIS"] == pais_origen, "ID_PAIS"].iloc[0])
+    fila_pais_origen = df_paises[df_paises["PAIS"] == pais_origen]
+    if fila_pais_origen.empty:
+        st.error("País origen inválido.")
+        st.stop()
+    id_pais_origen = int(fila_pais_origen.iloc[0]["ID_PAIS"])
 
     # ---------- ESTADO ORIGEN ----------
     df_estados_origen = pd.read_sql(
@@ -309,8 +311,6 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         st.warning("No hay estados activos para el país origen.")
         estado_origen = None
         id_estado_origen = None
-        st.session_state["estado_origen"] = None
-        st.session_state["ciudad_origen"] = None
     else:
         df_estados_origen["ESTADO"] = df_estados_origen["ESTADO"].astype(str).str.strip()
         estados_origen = df_estados_origen["ESTADO"].tolist()
@@ -327,15 +327,13 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
             st.session_state["ciudad_origen"] = None
         st.session_state["estado_origen_prev"] = estado_origen
 
-        id_estado_origen = int(
-            df_estados_origen.loc[df_estados_origen["ESTADO"] == estado_origen, "ID_ESTADO"].iloc[0]
-        )
+        fila_estado_origen = df_estados_origen[df_estados_origen["ESTADO"] == estado_origen]
+        id_estado_origen = int(fila_estado_origen.iloc[0]["ID_ESTADO"]) if not fila_estado_origen.empty else None
 
     # ---------- CIUDAD ORIGEN ----------
-    if id_estado_origen is None:
+    if not id_estado_origen:
         ciudad_origen = None
-        st.info("Primero selecciona un estado origen.")
-        st.session_state["ciudad_origen"] = None
+        st.info("Selecciona estado origen.")
     else:
         df_ciudades_origen = pd.read_sql(
             """
@@ -349,9 +347,8 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         )
 
         if df_ciudades_origen.empty:
-            st.warning("No hay ciudades activas para el estado origen.")
             ciudad_origen = None
-            st.session_state["ciudad_origen"] = None
+            st.warning("No hay ciudades activas para el estado origen.")
         else:
             df_ciudades_origen["CIUDAD"] = df_ciudades_origen["CIUDAD"].astype(str).str.strip()
             ciudades_origen = df_ciudades_origen["CIUDAD"].tolist()
@@ -368,7 +365,6 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
 
     # ---------- PAÍS DESTINO ----------
     pais_destino_prev = (st.session_state.get("pais_destino") or "").strip().upper()
-
     pais_destino = st.selectbox(
         "País destino",
         paises,
@@ -381,7 +377,11 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         st.session_state["ciudad_destino"] = None
     st.session_state["pais_destino_prev"] = pais_destino
 
-    id_pais_destino = int(df_paises.loc[df_paises["PAIS"] == pais_destino, "ID_PAIS"].iloc[0])
+    fila_pais_destino = df_paises[df_paises["PAIS"] == pais_destino]
+    if fila_pais_destino.empty:
+        st.error("País destino inválido.")
+        st.stop()
+    id_pais_destino = int(fila_pais_destino.iloc[0]["ID_PAIS"])
 
     # ---------- ESTADO DESTINO ----------
     df_estados_destino = pd.read_sql(
@@ -396,11 +396,9 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
     )
 
     if df_estados_destino.empty:
-        st.warning("No hay estados activos para el país destino.")
         estado_destino = None
         id_estado_destino = None
-        st.session_state["estado_destino"] = None
-        st.session_state["ciudad_destino"] = None
+        st.warning("No hay estados activos para el país destino.")
     else:
         df_estados_destino["ESTADO"] = df_estados_destino["ESTADO"].astype(str).str.strip()
         estados_destino = df_estados_destino["ESTADO"].tolist()
@@ -417,15 +415,13 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
             st.session_state["ciudad_destino"] = None
         st.session_state["estado_destino_prev"] = estado_destino
 
-        id_estado_destino = int(
-            df_estados_destino.loc[df_estados_destino["ESTADO"] == estado_destino, "ID_ESTADO"].iloc[0]
-        )
+        fila_estado_destino = df_estados_destino[df_estados_destino["ESTADO"] == estado_destino]
+        id_estado_destino = int(fila_estado_destino.iloc[0]["ID_ESTADO"]) if not fila_estado_destino.empty else None
 
     # ---------- CIUDAD DESTINO ----------
-    if id_estado_destino is None:
+    if not id_estado_destino:
         ciudad_destino = None
-        st.info("Primero selecciona un estado destino.")
-        st.session_state["ciudad_destino"] = None
+        st.info("Selecciona estado destino.")
     else:
         df_ciudades_destino = pd.read_sql(
             """
@@ -439,9 +435,8 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         )
 
         if df_ciudades_destino.empty:
-            st.warning("No hay ciudades activas para el estado destino.")
             ciudad_destino = None
-            st.session_state["ciudad_destino"] = None
+            st.warning("No hay ciudades activas para el estado destino.")
         else:
             df_ciudades_destino["CIUDAD"] = df_ciudades_destino["CIUDAD"].astype(str).str.strip()
             ciudades_destino = df_ciudades_destino["CIUDAD"].tolist()
@@ -475,7 +470,6 @@ with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         index=unidades.index(tipo_unidad_prev) if tipo_unidad_prev in unidades else 0,
         key="tipo_unidad"
     )
-
 
 # =====================================================
 # BLOQUE C - DATOS COMERCIALES ✅ ROBUSTO (CLOUD/LOCAL)
