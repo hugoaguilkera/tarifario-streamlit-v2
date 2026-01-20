@@ -722,13 +722,22 @@ if duplicado > 0:
 else:
     confirmar = True
 
-# =====================================================
-# BLOQUE E.5 - INSERT FINAL
+## =====================================================
+# BLOQUE E.5 - INSERT FINAL (CON VERSIONADO)
 # =====================================================
 if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
 
+        # 🔁 SI VIENE DE EDITAR → DESACTIVA LA TARIFA ANTERIOR
+        editando = "id_tarifa_editar" in st.session_state
+        if editando:
+            cur.execute(
+                "UPDATE tarifario_estandar SET ACTIVA = 0 WHERE ID_TARIFA = ?",
+                (st.session_state["id_tarifa_editar"],)
+            )
+
+        # ➕ INSERT NUEVA VERSIÓN (SIEMPRE ACTIVA = 1)
         cur.execute(
             """
             INSERT INTO tarifario_estandar (
@@ -773,17 +782,18 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 WAITING,
                 COSTO_DE_WAITING_CHARGE,
                 FREE_TIME,
-                TRUCKING_CANCEL_FEE
+                TRUCKING_CANCEL_FEE,
+                ACTIVA
             )
             VALUES (?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                1,  # RESPONSABLE (temporal)
+                1,
                 tipo_operacion,
                 tipo_viaje,
                 tipo_unidad,
@@ -825,10 +835,15 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 float(costo_waiting),
                 int(free_time),
                 float(trucking_cancel_fee),
+                1  # ACTIVA
             ),
         )
 
         conn.commit()
+
+    # 🧹 LIMPIEZA DE ESTADO (CLAVE)
+    st.session_state.pop("id_tarifa_editar", None)
+    st.session_state["tarifa_cargada"] = False
 
     st.success("✅ Tarifa guardada correctamente")
     st.rerun()
