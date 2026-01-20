@@ -54,7 +54,7 @@ def df_sql(query: str, params=()):
         return pd.DataFrame()
 
 # =====================================================
-# BLOQUE 0 - BUSCADOR DE TARIFAS (SENIOR)
+# BLOQUE 0 - BUSCADOR DE TARIFAS (PROFESIONAL)
 # =====================================================
 st.subheader("🔍 Buscar tarifa existente para modificar")
 
@@ -81,21 +81,23 @@ else:
 
     select_cols = [c for c in deseadas if c in cols]
 
-    # 🔎 BUSCADOR POR CLAVE (como catálogos)
+    # 🔎 BUSCADOR POR CLAVE (ID_TARIFA)
     buscar_id = st.text_input(
         "🔎 Buscar por clave de tarifa (ID_TARIFA)",
         placeholder="Ej. 11"
     ).strip()
 
-    # 🔁 HISTORIAL
+    # 📜 HISTORIAL
     ver_historial = st.checkbox("📜 Ver historial de versiones", value=False)
 
     where = "WHERE 1=1"
     params = []
 
+    # 👉 FIX CLAVE: ID_TARIFA ES FLOAT → CAST A INTEGER
     if buscar_id:
-        where += " AND ID_TARIFA = ?"
-        params.append(buscar_id)
+        where += " AND CAST(ID_TARIFA AS INTEGER) = ?"
+        params.append(int(buscar_id))
+
     elif not ver_historial:
         where += """
         AND ID_TARIFA IN (
@@ -104,7 +106,7 @@ else:
             GROUP BY
                 TRANSPORTISTA,
                 CLIENTE,
-                TIPO_UNIDAD,
+                COALESCE(TIPO_UNIDAD,''),
                 PAIS_ORIGEN,
                 ESTADO_ORIGEN,
                 CIUDAD_ORIGEN,
@@ -128,27 +130,48 @@ if not df_existentes.empty and not buscar_id:
 
     transportistas = ["Todos"] + sorted(df_existentes["TRANSPORTISTA"].dropna().unique())
     clientes = ["Todos"] + sorted(df_existentes["CLIENTE"].dropna().unique())
+    ciudades_origen = ["Todas"] + sorted(df_existentes["CIUDAD_ORIGEN"].dropna().unique())
+    ciudades_destino = ["Todas"] + sorted(df_existentes["CIUDAD_DESTINO"].dropna().unique())
 
-    filtro_transportista = st.selectbox("Filtrar por transportista", transportistas)
-    filtro_cliente = st.selectbox("Filtrar por cliente", clientes)
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        filtro_transportista = st.selectbox("Transportista", transportistas)
+    with col2:
+        filtro_cliente = st.selectbox("Cliente", clientes)
+    with col3:
+        filtro_origen = st.selectbox("Ciudad origen", ciudades_origen)
+    with col4:
+        filtro_destino = st.selectbox("Ciudad destino", ciudades_destino)
 
     if filtro_transportista != "Todos":
         df_existentes = df_existentes[df_existentes["TRANSPORTISTA"] == filtro_transportista]
 
     if filtro_cliente != "Todos":
-        df_existentes = df_existentes[df_existentes["CLIENTE"] == filtro_cliente]
+        df_existentes = df_existentes[
+            (df_existentes["CLIENTE"] == filtro_cliente) |
+            (df_existentes["CLIENTE"].isna()) |
+            (df_existentes["CLIENTE"] == "") |
+            (df_existentes["CLIENTE"] == "SIN CLIENTE")
+        ]
+
+    if filtro_origen != "Todas":
+        df_existentes = df_existentes[df_existentes["CIUDAD_ORIGEN"] == filtro_origen]
+
+    if filtro_destino != "Todas":
+        df_existentes = df_existentes[df_existentes["CIUDAD_DESTINO"] == filtro_destino]
 
 # ---------------- SELECT TARIFA ----------------
-opciones = ["NUEVA"] + df_existentes["ID_TARIFA"].astype(str).tolist()
+opciones = ["NUEVA"] + df_existentes["ID_TARIFA"].astype(int).astype(str).tolist()
 
 def etiqueta_tarifa(x):
     if x == "NUEVA":
         return "➕ NUEVA TARIFA"
-    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == x].iloc[0]
+    fila = df_existentes[df_existentes["ID_TARIFA"].astype(int).astype(str) == x].iloc[0]
     estado = "🟢" if fila["ACTIVA"] == 1 else "🔴"
     return (
-        f"{estado} ID {fila['ID_TARIFA']} | {fila['TRANSPORTISTA']} | "
-        f"{fila['CIUDAD_ORIGEN']} → {fila['CIUDAD_DESTINO']} | {fila['ALL_IN']}"
+        f"{estado} ID {int(fila['ID_TARIFA'])} | {fila['TRANSPORTISTA']} | "
+        f"{fila['CIUDAD_ORIGEN']} → {fila['CIUDAD_DESTINO']} | ALL IN {fila['ALL_IN']}"
     )
 
 tarifa_id_sel = st.selectbox(
@@ -164,7 +187,7 @@ if tarifa_id_sel == "NUEVA":
     st.session_state["tarifa_cargada"] = False
     st.info("🆕 Captura de tarifa nueva")
 else:
-    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == tarifa_id_sel].iloc[0]
+    fila = df_existentes[df_existentes["ID_TARIFA"].astype(int).astype(str) == tarifa_id_sel].iloc[0]
     st.session_state["id_tarifa_editar"] = int(fila["ID_TARIFA"])
     st.session_state["tarifa_base_tmp"] = fila
     st.session_state["tarifa_cargada"] = False
