@@ -52,6 +52,121 @@ def df_sql(query: str, params=()):
     except Exception as e:
         st.warning(f"⚠️ No se pudo leer SQL.\n{e}")
         return pd.DataFrame()
+# =====================================================
+# BLOQUE 0 - BUSCADOR RÁPIDO DE TARIFAS (EDICIÓN / NUEVA)
+# =====================================================
+st.subheader("🔍 Buscar tarifa existente para modificar")
+
+if not DB_PATH.exists():
+    st.error(f"❌ No existe el archivo de BD: {DB_PATH}")
+    st.stop()
+
+if not table_exists("tarifario_estandar"):
+    st.warning("⚠️ No existe la tabla tarifario_estandar.")
+    df_existentes = pd.DataFrame(
+        columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN"]
+    )
+else:
+    cols = set(get_columns("tarifario_estandar"))
+
+    deseadas = [
+        "ID_TARIFA",
+        "TRANSPORTISTA",
+        "CLIENTE",
+        "TIPO_UNIDAD",
+        "PAIS_ORIGEN","ESTADO_ORIGEN","CIUDAD_ORIGEN",
+        "PAIS_DESTINO","ESTADO_DESTINO","CIUDAD_DESTINO",
+        "ALL_IN",
+        "ACTIVA"
+    ]
+
+    select_cols = [c for c in deseadas if c in cols]
+
+    where = "WHERE ID_TARIFA IS NOT NULL"
+    if "ACTIVA" in cols:
+        where += " AND ACTIVA = 1"
+
+    sql = f"""
+        SELECT {", ".join(select_cols)}
+        FROM tarifario_estandar
+        {where}
+    """
+
+    df_existentes = df_sql(sql)
+
+    if df_existentes.empty:
+        st.info("No hay tarifas activas.")
+        df_existentes = pd.DataFrame(
+            columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN"]
+        )
+
+# ---------------- FILTROS ----------------
+transportistas_list = ["Todos"] + sorted(
+    df_existentes.get("TRANSPORTISTA", pd.Series(dtype=object))
+    .dropna().unique().tolist()
+)
+
+clientes_list = ["Todos"] + sorted(
+    df_existentes.get("CLIENTE", pd.Series(dtype=object))
+    .dropna().unique().tolist()
+)
+
+filtro_transportista = st.selectbox(
+    "Filtrar por transportista",
+    transportistas_list,
+    key="filtro_transportista"
+)
+
+filtro_cliente = st.selectbox(
+    "Filtrar por cliente",
+    clientes_list,
+    key="filtro_cliente"
+)
+
+if filtro_transportista != "Todos" and "TRANSPORTISTA" in df_existentes.columns:
+    df_existentes = df_existentes[
+        df_existentes["TRANSPORTISTA"] == filtro_transportista
+    ]
+
+if filtro_cliente != "Todos" and "CLIENTE" in df_existentes.columns:
+    df_existentes = df_existentes[
+        (df_existentes["CLIENTE"] == filtro_cliente) |
+        (df_existentes["CLIENTE"].isna()) |
+        (df_existentes["CLIENTE"] == "") |
+        (df_existentes["CLIENTE"] == "SIN CLIENTE")
+    ]
+
+# ---------------- SELECT TARIFA ----------------
+ids = df_existentes["ID_TARIFA"].astype(str).tolist()
+opciones_tarifa = ["NUEVA"] + ids
+
+def etiqueta_tarifa(x):
+    if x == "NUEVA":
+        return "➕ NUEVA TARIFA"
+    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == x]
+    if fila.empty:
+        return x
+    fila = fila.iloc[0]
+    return f"{fila.get('TRANSPORTISTA','')} | {fila.get('CIUDAD_ORIGEN','')} → {fila.get('CIUDAD_DESTINO','')}"
+
+tarifa_id_sel = st.selectbox(
+    "Selecciona tarifa",
+    opciones_tarifa,
+    format_func=etiqueta_tarifa,
+    key="tarifa_id_sel"
+)
+
+if tarifa_id_sel == "NUEVA":
+    st.session_state["tarifa_base_tmp"] = None
+    st.session_state["tarifa_cargada"] = False
+    st.session_state.pop("id_tarifa_editar", None)
+    st.info("🆕 Captura de tarifa nueva")
+else:
+    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == tarifa_id_sel]
+    if not fila.empty:
+        st.session_state["tarifa_base_tmp"] = fila.iloc[0]
+        st.session_state["tarifa_cargada"] = False
+        st.session_state["id_tarifa_editar"] = int(fila.iloc[0]["ID_TARIFA"])
 
 # =====================================================
 # BLOQUE 0.1 - CARGA SEGURA DE TARIFA EN SESSION_STATE
@@ -66,22 +181,17 @@ CAMPOS_SESSION = [
     "aduanas_aranceles","insurance","peajes","maniobras"
 ]
 
-DEFAULTS = {
-    "pais_origen": "", "estado_origen": "", "ciudad_origen": "",
-    "pais_destino": "", "estado_destino": "", "ciudad_destino": "",
-    "tipo_unidad": "",
-    "precio_viaje_sencillo": 0.0, "precio_viaje_redondo": 0.0,
-    "tarifa_viaje_sencillo": 0.0, "tarifa_viaje_redondo": 0.0, "tarifa_viaje_full": 0.0,
-    "usa_freight": 0.0, "mexican_freight": 0.0, "crossing": 0.0, "border_crossing": 0.0,
-    "aduanas_aranceles": 0.0, "insurance": 0.0, "peajes": 0.0, "maniobras": 0.0
-}
+DEFAULTS = {c: 0.0 for c in CAMPOS_SESSION}
+DEFAULTS.update({
+    "pais_origen":"", "estado_origen":"", "ciudad_origen":"",
+    "pais_destino":"", "estado_destino":"", "ciudad_destino":"",
+    "tipo_unidad":""
+})
 
 for c in CAMPOS_SESSION:
-    if c not in st.session_state:
-        st.session_state[c] = DEFAULTS.get(c, "")
+    st.session_state.setdefault(c, DEFAULTS[c])
 
-if "tarifa_cargada" not in st.session_state:
-    st.session_state["tarifa_cargada"] = False
+st.session_state.setdefault("tarifa_cargada", False)
 
 MAPEO_SESSION_BD = {
     "pais_origen": "PAIS_ORIGEN",
@@ -107,123 +217,17 @@ MAPEO_SESSION_BD = {
 }
 
 if (
-    "tarifa_base_tmp" in st.session_state
-    and st.session_state["tarifa_base_tmp"] is not None
+    st.session_state.get("tarifa_base_tmp") is not None
     and not st.session_state["tarifa_cargada"]
 ):
     tarifa_base = st.session_state["tarifa_base_tmp"]
     for campo_ui, campo_bd in MAPEO_SESSION_BD.items():
-        val = tarifa_base.get(campo_bd, DEFAULTS.get(campo_ui, ""))
-        st.session_state[campo_ui] = val if val is not None else DEFAULTS.get(campo_ui, "")
+        st.session_state[campo_ui] = tarifa_base.get(campo_bd, DEFAULTS[campo_ui])
     st.session_state["tarifa_cargada"] = True
     st.session_state["tarifa_base_tmp"] = None
 else:
     tarifa_base = None
 
-# =====================================================
-# BLOQUE 0 - BUSCADOR RÁPIDO DE TARIFAS (EDICIÓN / NUEVA)
-# =====================================================
-st.subheader("🔍 Buscar tarifa existente para modificar")
-
-if not DB_PATH.exists():
-    st.error(f"❌ No existe el archivo de BD en el repo: {DB_PATH}")
-    st.stop()
-
-if not table_exists("tarifario_estandar"):
-    st.warning("⚠️ No existe la tabla `tarifario_estandar` en la BD. No se puede buscar tarifas.")
-    df_existentes = pd.DataFrame(columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN"])
-else:
-    cols = set(get_columns("tarifario_estandar"))
-
-    # columnas deseadas (solo se usan si existen)
-    deseadas = [
-        "ID_TARIFA","TRANSPORTISTA","CLIENTE","TIPO_UNIDAD",
-        "PRECIO_VIAJE_SENCILLO","PRECIO_VIAJE_REDONDO",
-        "TARIFA_VIAJE_SENCILLO","TARIFA_VIAJE_REDONDO","TARIFA_VIAJE_FULL",
-        "USA_FREIGHT","MEXICAN_FREIGHT","CROSSING","BORDER_CROSSING",
-        "ADUANAS_ARANCELES","INSURANCE","PEAJES","MANIOBRAS",
-        "PAIS_ORIGEN","ESTADO_ORIGEN","CIUDAD_ORIGEN",
-        "PAIS_DESTINO","ESTADO_DESTINO","CIUDAD_DESTINO",
-        "ALL_IN","ACTIVA"
-    ]
-    select_cols = [c for c in deseadas if c in cols]
-
-    # filtro ACTIVA si existe, si no, no filtra
-    where = "WHERE ID_TARIFA IS NOT NULL"
-    if "ACTIVA" in cols:
-        where += " AND ACTIVA = 1"
-
-    sql = f"""
-        SELECT {", ".join(select_cols)}
-        FROM tarifario_estandar
-        {where}
-    """
-
-    df_existentes = df_sql(sql)
-
-    if df_existentes.empty:
-        st.info("No hay tarifas disponibles (ACTIVAS o con ID_TARIFA).")
-        df_existentes = pd.DataFrame(columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN"])
-
-# ---------------- FILTROS DE BÚSQUEDA ----------------
-transportistas_list = ["Todos"] + sorted(df_existentes.get("TRANSPORTISTA", pd.Series(dtype=object)).dropna().unique().tolist())
-clientes_list = ["Todos"] + sorted(df_existentes.get("CLIENTE", pd.Series(dtype=object)).dropna().unique().tolist())
-
-filtro_transportista = st.selectbox("Filtrar por transportista", transportistas_list, key="filtro_transportista")
-filtro_cliente = st.selectbox("Filtrar por cliente", clientes_list, key="filtro_cliente")
-
-if filtro_transportista != "Todos" and "TRANSPORTISTA" in df_existentes.columns:
-    df_existentes = df_existentes[df_existentes["TRANSPORTISTA"] == filtro_transportista]
-
-if filtro_cliente != "Todos" and "CLIENTE" in df_existentes.columns:
-    df_existentes = df_existentes[df_existentes["CLIENTE"] == filtro_cliente]
-
-orden_cols = [c for c in ["TRANSPORTISTA", "PAIS_ORIGEN", "CIUDAD_ORIGEN"] if c in df_existentes.columns]
-if orden_cols and not df_existentes.empty:
-    df_existentes = df_existentes.sort_values(orden_cols).reset_index(drop=True)
-
-ids = df_existentes.get("ID_TARIFA", pd.Series(dtype=object)).dropna().astype(str).tolist()
-opciones_tarifa = ["NUEVA"] + ids
-
-def etiqueta_tarifa(x: str) -> str:
-    if x == "NUEVA":
-        return "➕ NUEVA TARIFA"
-    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == str(x)]
-    if fila.empty:
-        return f"{x} | (no encontrada)"
-    fila = fila.iloc[0]
-    trp = str(fila.get("TRANSPORTISTA", ""))
-    ori = str(fila.get("CIUDAD_ORIGEN", ""))
-    des = str(fila.get("CIUDAD_DESTINO", ""))
-    return f"{trp} | {ori} | {des}"
-
-tarifa_id_sel = st.selectbox(
-    "Selecciona tarifa",
-    opciones_tarifa,
-    format_func=etiqueta_tarifa,
-    key="tarifa_id_captura"
-)
-
-if tarifa_id_sel == "NUEVA":
-    tarifa_base = None
-    st.session_state["tarifa_base_tmp"] = None
-    st.session_state["tarifa_cargada"] = False
-    st.info("🆕 Modo captura de tarifa nueva")
-else:
-    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == str(tarifa_id_sel)]
-    if fila.empty:
-        st.warning("La tarifa seleccionada no se encontró en el filtrado actual.")
-        tarifa_base = None
-        st.session_state["tarifa_base_tmp"] = None
-        st.session_state["tarifa_cargada"] = False
-    else:
-        tarifa_base = fila.iloc[0]
-        st.session_state["tarifa_base_tmp"] = tarifa_base
-        st.session_state["tarifa_cargada"] = False
-        st.caption(
-            f"Tarifa seleccionada | Transportista: {tarifa_base.get('TRANSPORTISTA','')} | "
-            f"ALL IN: {tarifa_base.get('ALL_IN','')}"
-        )
 
 # =====================================================
 # BOTÓN - ADMINISTRAR CATÁLOGOS
@@ -232,7 +236,13 @@ if st.button("🛠️ Administrar catálogos", key="btn_ir_catalogos"):
     st.switch_page("pages/1_Administrar_catalogos.py")
 
 if st.button("✏️ Editar tarifa"):
-    st.switch_page("pages/3_Editar_tarifa.py")
+    if tarifa_id_sel == "NUEVA":
+        st.warning("Selecciona una tarifa existente para editar.")
+    else:
+        if "id_tarifa_editar" not in st.session_state:
+            st.error("No se encontró ID de tarifa para edición.")
+        else:
+            st.switch_page("pages/3_Editar_tarifa.py")
 
 # =====================================================
 # BLOQUE A - DATOS DEL SERVICIO
