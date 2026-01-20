@@ -767,7 +767,7 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 RESPONSABLE,
                 TIPO_DE_OPERACION,
                 TIPO_DE_VIAJE,
-                TIPO_UNIDAD,
+                COALESCE(TIPO_UNIDAD,'')
                 TRANSPORTISTA,
                 CLIENTE,
 
