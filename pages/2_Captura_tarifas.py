@@ -52,7 +52,7 @@ def df_sql(query: str, params=()):
     except Exception as e:
         st.warning(f"⚠️ No se pudo leer SQL.\n{e}")
         return pd.DataFrame()
-# =====================================================
+
 # BLOQUE 0 - BUSCADOR RÁPIDO DE TARIFAS (EDICIÓN / NUEVA)
 # =====================================================
 st.subheader("🔍 Buscar tarifa existente para modificar")
@@ -124,9 +124,7 @@ filtro_cliente = st.selectbox(
 )
 
 if filtro_transportista != "Todos" and "TRANSPORTISTA" in df_existentes.columns:
-    df_existentes = df_existentes[
-        df_existentes["TRANSPORTISTA"] == filtro_transportista
-    ]
+    df_existentes = df_existentes[df_existentes["TRANSPORTISTA"] == filtro_transportista]
 
 if filtro_cliente != "Todos" and "CLIENTE" in df_existentes.columns:
     df_existentes = df_existentes[
@@ -149,13 +147,20 @@ def etiqueta_tarifa(x):
     fila = fila.iloc[0]
     return f"{fila.get('TRANSPORTISTA','')} | {fila.get('CIUDAD_ORIGEN','')} → {fila.get('CIUDAD_DESTINO','')}"
 
+# 🔥 CLAVE ERP: si hay tarifas, NO arrancar en NUEVA
+default_index = 0
+if len(ids) > 0:
+    default_index = 1
+
 tarifa_id_sel = st.selectbox(
     "Selecciona tarifa",
     opciones_tarifa,
+    index=default_index,
     format_func=etiqueta_tarifa,
     key="tarifa_id_sel"
 )
 
+# ---------------- CONTROL DE MODO ----------------
 if tarifa_id_sel == "NUEVA":
     st.session_state["tarifa_base_tmp"] = None
     st.session_state["tarifa_cargada"] = False
@@ -167,6 +172,7 @@ else:
         st.session_state["tarifa_base_tmp"] = fila.iloc[0]
         st.session_state["tarifa_cargada"] = False
         st.session_state["id_tarifa_editar"] = int(fila.iloc[0]["ID_TARIFA"])
+
 
 # =====================================================
 # BLOQUE 0.1 - CARGA SEGURA DE TARIFA EN SESSION_STATE
