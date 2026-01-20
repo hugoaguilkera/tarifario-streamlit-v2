@@ -83,8 +83,30 @@ else:
 
     select_cols = [c for c in deseadas if c in cols]
 
-    # 🔥 FIX CLAVE: NO FILTRAR ACTIVA AQUÍ
-    where = "WHERE ID_TARIFA IS NOT NULL"
+    # 🔁 MODO DE VISUALIZACIÓN
+    ver_historial = st.checkbox("📜 Ver historial de versiones", value=False)
+
+    if ver_historial:
+        # HISTORIAL → todas las versiones
+        where = "WHERE ID_TARIFA IS NOT NULL"
+    else:
+        # NORMAL → solo la última versión por ruta
+        where = """
+        WHERE ID_TARIFA IN (
+            SELECT MAX(ID_TARIFA)
+            FROM tarifario_estandar
+            GROUP BY
+                TRANSPORTISTA,
+                CLIENTE,
+                TIPO_UNIDAD,
+                PAIS_ORIGEN,
+                ESTADO_ORIGEN,
+                CIUDAD_ORIGEN,
+                PAIS_DESTINO,
+                ESTADO_DESTINO,
+                CIUDAD_DESTINO
+        )
+        """
 
     sql = f"""
         SELECT {", ".join(select_cols)}
@@ -163,6 +185,7 @@ else:
     st.session_state["tarifa_base_tmp"] = fila.iloc[0]
     st.session_state["tarifa_cargada"] = False
     st.session_state["id_tarifa_editar"] = int(fila.iloc[0]["ID_TARIFA"])
+
 
 # =====================================================
 # BLOQUE 0.1 - CARGA SEGURA DE TARIFA EN SESSION_STATE
