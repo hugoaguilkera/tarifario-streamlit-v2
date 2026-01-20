@@ -1,8 +1,3 @@
-# =====================================================
-# PANTALLA 2 - CAPTURA DE TARIFAS Y COSTOS (LIBRE)
-# BLOQUE 1 - IMPORTS + CONFIG + DB PATH (CLOUD/LOCAL)
-# =====================================================
-
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -22,14 +17,12 @@ if st.button("RESET ESTADO"):
     st.rerun()
 
 # =====================================================
-# HELPERS SQL (NO TRUENA)
+# HELPERS SQL (NO TRUENA)  ✅ ← AQUÍ VA
 # =====================================================
 def _connect():
-    # uri + immutable reduce broncas de lock en Cloud
     if DB_PATH.exists():
         uri = f"file:{DB_PATH.as_posix()}?mode=ro&immutable=1"
         return sqlite3.connect(uri, uri=True, check_same_thread=False)
-    # si no existe, conecto “normal” para que el error lo maneje arriba
     return sqlite3.connect(str(DB_PATH), check_same_thread=False)
 
 def table_exists(table: str) -> bool:
@@ -57,7 +50,7 @@ def df_sql(query: str, params=()):
         with _connect() as conn:
             return pd.read_sql(query, conn, params=params)
     except Exception as e:
-        st.warning(f"⚠️ No se pudo leer SQL. Se continúa sin romper la app.\nDetalle: {e}")
+        st.warning(f"⚠️ No se pudo leer SQL.\n{e}")
         return pd.DataFrame()
 
 # =====================================================
