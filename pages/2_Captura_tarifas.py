@@ -708,13 +708,17 @@ if errores:
     st.stop()
 
 # =====================================================
-# BLOQUE E.4 - VALIDAR DUPLICADO (misma ruta/proveedor)
+# BLOQUE E.4 - VALIDACIÓN DE DUPLICADOS (SENIOR)
 # =====================================================
+
+# Modo edición si existe una tarifa base seleccionada
+editando = "id_tarifa_editar" in st.session_state
+
 with sqlite3.connect(str(DB_PATH)) as conn:
     cur = conn.cursor()
-    duplicado = cur.execute(
-        """
-        SELECT COUNT(*)
+
+    sql_duplicado = """
+        SELECT COUNT(1)
         FROM tarifario_estandar
         WHERE
             TRANSPORTISTA = ?
@@ -726,23 +730,35 @@ with sqlite3.connect(str(DB_PATH)) as conn:
             AND ESTADO_DESTINO = ?
             AND CIUDAD_DESTINO = ?
             AND ACTIVA = 1
-        """,
-        (
-            transportista,
-            tipo_unidad,
-            pais_origen,
-            estado_origen,
-            ciudad_origen,
-            pais_destino,
-            estado_destino,
-            ciudad_destino,
-        ),
-    ).fetchone()[0]
+    """
 
-if duplicado > 0:
-    st.warning("⚠️ Ya existe una tarifa ACTIVA con el mismo proveedor y la misma ruta.")
-    confirmar = st.checkbox("Confirmo que deseo guardar una nueva versión", key="confirmar_version_nueva")
+    params = (
+        transportista,
+        tipo_unidad,
+        pais_origen,
+        estado_origen,
+        ciudad_origen,
+        pais_destino,
+        estado_destino,
+        ciudad_destino,
+    )
+
+    duplicado_activo = cur.execute(sql_duplicado, params).fetchone()[0]
+
+# -----------------------------------------------------
+# REGLAS DE NEGOCIO
+# -----------------------------------------------------
+if duplicado_activo > 0 and not editando:
+    st.warning(
+        "⚠️ Ya existe una tarifa ACTIVA para esta ruta y proveedor.\n"
+        "Si continúas, se creará una NUEVA versión."
+    )
+    confirmar = st.checkbox(
+        "Confirmo que deseo crear una nueva versión",
+        key="confirmar_version_nueva"
+    )
 else:
+    # Editar o no hay duplicado → permitir guardar
     confirmar = True
 
 ## =====================================================
