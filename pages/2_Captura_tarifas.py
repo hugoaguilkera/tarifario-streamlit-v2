@@ -231,6 +231,9 @@ else:
 if st.button("🛠️ Administrar catálogos", key="btn_ir_catalogos"):
     st.switch_page("pages/1_Administrar_catalogos.py")
 
+if st.button("✏️ Editar tarifa"):
+    st.switch_page("pages/3_Editar_tarifa.py")
+
 # =====================================================
 # BLOQUE A - DATOS DEL SERVICIO
 # =====================================================
