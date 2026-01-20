@@ -53,6 +53,7 @@ def df_sql(query: str, params=()):
         st.warning(f"⚠️ No se pudo leer SQL.\n{e}")
         return pd.DataFrame()
 
+# =====================================================
 # BLOQUE 0 - BUSCADOR RÁPIDO DE TARIFAS (EDICIÓN / NUEVA)
 # =====================================================
 st.subheader("🔍 Buscar tarifa existente para modificar")
@@ -64,7 +65,7 @@ if not DB_PATH.exists():
 if not table_exists("tarifario_estandar"):
     st.warning("⚠️ No existe la tabla tarifario_estandar.")
     df_existentes = pd.DataFrame(
-        columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN"]
+        columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN","ACTIVA"]
     )
 else:
     cols = set(get_columns("tarifario_estandar"))
@@ -82,33 +83,31 @@ else:
 
     select_cols = [c for c in deseadas if c in cols]
 
+    # 🔥 FIX CLAVE: NO FILTRAR ACTIVA AQUÍ
     where = "WHERE ID_TARIFA IS NOT NULL"
-    if "ACTIVA" in cols:
-        where += " AND ACTIVA = 1"
 
     sql = f"""
         SELECT {", ".join(select_cols)}
         FROM tarifario_estandar
         {where}
+        ORDER BY ID_TARIFA DESC
     """
 
     df_existentes = df_sql(sql)
 
     if df_existentes.empty:
-        st.info("No hay tarifas activas.")
+        st.info("No hay tarifas registradas.")
         df_existentes = pd.DataFrame(
-            columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN"]
+            columns=["ID_TARIFA","TRANSPORTISTA","CLIENTE","CIUDAD_ORIGEN","CIUDAD_DESTINO","ALL_IN","ACTIVA"]
         )
 
 # ---------------- FILTROS ----------------
 transportistas_list = ["Todos"] + sorted(
-    df_existentes.get("TRANSPORTISTA", pd.Series(dtype=object))
-    .dropna().unique().tolist()
+    df_existentes["TRANSPORTISTA"].dropna().unique().tolist()
 )
 
 clientes_list = ["Todos"] + sorted(
-    df_existentes.get("CLIENTE", pd.Series(dtype=object))
-    .dropna().unique().tolist()
+    df_existentes["CLIENTE"].dropna().unique().tolist()
 )
 
 filtro_transportista = st.selectbox(
@@ -123,10 +122,10 @@ filtro_cliente = st.selectbox(
     key="filtro_cliente"
 )
 
-if filtro_transportista != "Todos" and "TRANSPORTISTA" in df_existentes.columns:
+if filtro_transportista != "Todos":
     df_existentes = df_existentes[df_existentes["TRANSPORTISTA"] == filtro_transportista]
 
-if filtro_cliente != "Todos" and "CLIENTE" in df_existentes.columns:
+if filtro_cliente != "Todos":
     df_existentes = df_existentes[
         (df_existentes["CLIENTE"] == filtro_cliente) |
         (df_existentes["CLIENTE"].isna()) |
@@ -141,21 +140,14 @@ opciones_tarifa = ["NUEVA"] + ids
 def etiqueta_tarifa(x):
     if x == "NUEVA":
         return "➕ NUEVA TARIFA"
-    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == x]
-    if fila.empty:
-        return x
-    fila = fila.iloc[0]
-    return f"{fila.get('TRANSPORTISTA','')} | {fila.get('CIUDAD_ORIGEN','')} → {fila.get('CIUDAD_DESTINO','')}"
-
-# 🔥 CLAVE ERP: si hay tarifas, NO arrancar en NUEVA
-default_index = 0
-if len(ids) > 0:
-    default_index = 1
+    fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == x].iloc[0]
+    estado = "🟢" if fila.get("ACTIVA", 1) == 1 else "🔴"
+    return f"{estado} {fila['TRANSPORTISTA']} | {fila['CIUDAD_ORIGEN']} → {fila['CIUDAD_DESTINO']} | {fila['ALL_IN']}"
 
 tarifa_id_sel = st.selectbox(
     "Selecciona tarifa",
     opciones_tarifa,
-    index=default_index,
+    index=1 if len(ids) > 0 else 0,
     format_func=etiqueta_tarifa,
     key="tarifa_id_sel"
 )
@@ -168,11 +160,9 @@ if tarifa_id_sel == "NUEVA":
     st.info("🆕 Captura de tarifa nueva")
 else:
     fila = df_existentes[df_existentes["ID_TARIFA"].astype(str) == tarifa_id_sel]
-    if not fila.empty:
-        st.session_state["tarifa_base_tmp"] = fila.iloc[0]
-        st.session_state["tarifa_cargada"] = False
-        st.session_state["id_tarifa_editar"] = int(fila.iloc[0]["ID_TARIFA"])
-
+    st.session_state["tarifa_base_tmp"] = fila.iloc[0]
+    st.session_state["tarifa_cargada"] = False
+    st.session_state["id_tarifa_editar"] = int(fila.iloc[0]["ID_TARIFA"])
 
 # =====================================================
 # BLOQUE 0.1 - CARGA SEGURA DE TARIFA EN SESSION_STATE
