@@ -2,6 +2,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
+
 
 st.set_page_config(page_title="Captura de tarifas", layout="wide")
 
@@ -767,8 +769,8 @@ else:
     # Editar o no hay duplicado → permitir guardar
     confirmar = True
 
-## =====================================================
-# BLOQUE E.5 - INSERT FINAL (CON VERSIONADO)
+# =====================================================
+# BLOQUE E.5 - INSERT FINAL (CON VERSIONADO CORRECTO)
 # =====================================================
 if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
     with sqlite3.connect(str(DB_PATH)) as conn:
@@ -796,47 +798,57 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 PAIS_ORIGEN,
                 ESTADO_ORIGEN,
                 CIUDAD_ORIGEN,
+                DIRECCION_DE_RECOLECCION,
+                DESTINO,
                 PAIS_DESTINO,
                 ESTADO_DESTINO,
                 CIUDAD_DESTINO,
+                DESTINO_EMPRESA,
+                DESTINO_DIRECCION,
+
+                USA_FREIGHT,
+                MEXICAN_FREIGHT,
+                CROSSING,
+                TEAM_DRIVER,
+                PEAJES,
+                MANIOBRAS,
+                INSURANCE,
+                ADUANAS_ARANCELES,
 
                 TARIFA_VIAJE_SENCILLO,
-                TARIFA_VIAJE_REDONDO,
                 TARIFA_VIAJE_FULL,
+                TARIFA_VIAJE_REDONDO,
 
                 PRECIO_VIAJE_SENCILLO,
                 PRECIO_VIAJE_REDONDO,
                 MONEDA,
 
-                USA_FREIGHT,
-                MEXICAN_FREIGHT,
-                CROSSING,
                 BORDER_CROSSING,
-                ADUANAS_ARANCELES,
-                INSURANCE,
-                PEAJES,
-                MANIOBRAS,
                 ALL_IN,
 
                 REMARK,
                 REQUERIMIENTO,
-                DIRECCION_DE_RECOLECCION,
-                DESTINO_EMPRESA,
-                DESTINO_DIRECCION,
-                TEAM_DRIVER,
+
                 WAITING,
                 COSTO_DE_WAITING_CHARGE,
                 FREE_TIME,
                 TRUCKING_CANCEL_FEE,
-                ACTIVA
+
+                VERSION,
+                ACTIVA,
+                FECHA_CAMBIO,
+                USUARIO_CAMBIO
             )
             VALUES (
                 ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?,
                 ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?
             )
             """,
             (
@@ -850,39 +862,46 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 pais_origen,
                 estado_origen,
                 ciudad_origen,
+                direccion_recoleccion,
+                destino_empresa,
                 pais_destino,
                 estado_destino,
                 ciudad_destino,
+                destino_empresa,
+                destino_direccion,
 
-                float(tarifa_sencillo),
-                float(tarifa_redondo),
-                float(tarifa_full),
+                usa_freight,
+                mexican_freight,
+                crossing,
+                int(team_driver),
+                peajes,
+                maniobras,
+                insurance,
+                aduanas_aranceles,
 
-                float(precio_sencillo),
-                float(precio_redondo),
+                tarifa_sencillo,
+                tarifa_full,
+                tarifa_redondo,
+
+                precio_sencillo,
+                precio_redondo,
                 moneda,
 
-                float(usa_freight),
-                float(mexican_freight),
-                float(crossing),
-                float(border_crossing),
-                float(aduanas_aranceles),
-                float(insurance),
-                float(peajes),
-                float(maniobras),
-                float(all_in),
+                border_crossing,
+                all_in,
 
                 remark,
                 requerimiento,
-                direccion_recoleccion,
-                destino_empresa,
-                destino_direccion,
-                int(team_driver),
+
                 int(waiting),
-                float(costo_waiting),
-                int(free_time),
-                float(trucking_cancel_fee),
-                1  # ACTIVA
+                costo_waiting,
+                free_time,
+                trucking_cancel_fee,
+
+                1,  # VERSION
+                1,  # ACTIVA
+                datetime.now().isoformat(),
+                "HUGO"
             )
         )
 
