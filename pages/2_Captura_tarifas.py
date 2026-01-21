@@ -19,12 +19,9 @@ if st.button("RESET ESTADO"):
     st.rerun()
 
 # =====================================================
-# HELPERS SQL (NO TRUENA)  ✅ ← AQUÍ VA
+# HELPERS SQL (CORRECTO – SIN CACHE RO)
 # =====================================================
 def _connect():
-    if DB_PATH.exists():
-        uri = f"file:{DB_PATH.as_posix()}?mode=ro&immutable=1"
-        return sqlite3.connect(uri, uri=True, check_same_thread=False)
     return sqlite3.connect(str(DB_PATH), check_same_thread=False)
 
 def table_exists(table: str) -> bool:
@@ -54,6 +51,7 @@ def df_sql(query: str, params=()):
     except Exception as e:
         st.warning(f"⚠️ No se pudo leer SQL.\n{e}")
         return pd.DataFrame()
+
 
 # =====================================================
 # BLOQUE 0 - BUSCADOR DE TARIFAS (PROFESIONAL)
