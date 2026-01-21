@@ -782,14 +782,14 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 (st.session_state["id_tarifa_editar"],)
             )
 
-        # ➕ INSERT NUEVA VERSIÓN (SIEMPRE ACTIVA = 1)
+        # ➕ INSERT NUEVA VERSIÓN (ACTIVA = 1)
         cur.execute(
             """
             INSERT INTO tarifario_estandar (
                 RESPONSABLE,
                 TIPO_DE_OPERACION,
                 TIPO_DE_VIAJE,
-                COALESCE(TIPO_UNIDAD,'')
+                TIPO_UNIDAD,
                 TRANSPORTISTA,
                 CLIENTE,
 
@@ -830,15 +830,17 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 TRUCKING_CANCEL_FEE,
                 ACTIVA
             )
-            VALUES (?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?,
-                    ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
             """,
             (
-                1,
+                1,  # RESPONSABLE
                 tipo_operacion,
                 tipo_viaje,
                 tipo_unidad,
@@ -881,12 +883,12 @@ if st.button("💾 Guardar tarifa", key="btn_guardar_tarifa") and confirmar:
                 int(free_time),
                 float(trucking_cancel_fee),
                 1  # ACTIVA
-            ),
+            )
         )
 
         conn.commit()
 
-    # 🧹 LIMPIEZA DE ESTADO (CLAVE)
+    # 🧹 LIMPIEZA DE ESTADO
     st.session_state.pop("id_tarifa_editar", None)
     st.session_state["tarifa_cargada"] = False
 
